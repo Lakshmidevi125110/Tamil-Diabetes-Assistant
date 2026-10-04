@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tamil Voice Diabetes Assistant | தமிழ் குரல் சர்க்கரை நோய் வழிகாட்டி</title>
+    <!-- Google Fonts for clean typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 1. Top Medical Safety & Emergency Disclaimer Banner -->
+        <aside class="disclaimer-banner" role="alert" aria-label="Medical Disclaimer">
+            <div class="disclaimer-content">
+                <span class="alert-icon">⚠️</span>
+                <p id="disclaimer-text">
+                    <strong>மருத்துவ எச்சரிக்கை:</strong> இது பொது விழிப்புணர்வு வழிகாட்டி மட்டுமே. மருத்துவ ஆலோசனை அல்ல. 
+                    அவசர அறிகுறிகள் (மயக்கம், தீவிர நடுக்கம்) ஏற்பட்டால் உடனடியாக <strong>108</strong> அவசர சிகிச்சையை அழைக்கவும்.
+                </p>
+            </div>
+        </aside>
+
+        <!-- 2. Header with App Title & Language Toggle -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-avatar">🩺</div>
+                <div class="brand-text">
+                    <h1 id="app-title">தமிழ் குரல் சர்க்கரை நோய் வழிகாட்டி</h1>
+                    <p id="app-subtitle">Tamil Voice Diabetes Assistant • கல்வி வழிகாட்டி</p>
+                </div>
+            </div>
+
+            <!-- Language Switcher -->
+            <div class="language-switch-container">
+                <label for="lang-select" class="visually-hidden">மொழி தேர்வு / Language</label>
+                <div class="toggle-pill">
+                    <button type="button" id="lang-ta" class="lang-btn active" data-lang="ta">தமிழ்</button>
+                    <button type="button" id="lang-en" class="lang-btn" data-lang="en">English</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 3. Chat Messages Conversation Window -->
+        <main class="chat-container">
+            <div id="chat-messages" class="chat-messages" role="log" aria-live="polite">
+                <!-- Initial Welcome Message will be inserted by app.js -->
+            </div>
+
+            <!-- Quick Suggestions / Starter Prompts -->
+            <div class="quick-prompts" id="quick-prompts">
+                <span class="chips-label" id="chips-label">பரிந்துரைக்கப்பட்ட கேள்விகள்:</span>
+                <div class="chips-list" id="chips-list">
+                    <!-- Populated dynamically based on selected language -->
+                </div>
+            </div>
+        </main>
+
+        <!-- 4. Input Controls (Text + Mic Ready) -->
+        <footer class="app-footer">
+            <form id="chat-form" class="chat-form" autocomplete="off">
+                <div class="input-bar">
+                    <!-- Voice Input Button (Prepared for Module 4) -->
+                    <button type="button" id="mic-btn" class="icon-btn mic-btn" title="குரல் மூலம் பேச (Speak)" aria-label="Record voice">
+                        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" x2="12" y1="19" y2="22"/>
+                        </svg>
+                    </button>
+
+                    <!-- Text input -->
+                    <input 
+                        type="text" 
+                        id="user-input" 
+                        class="chat-input" 
+                        placeholder="உங்கள் கேள்வியை இங்கே தட்டச்சு செய்யவும்..." 
+                        aria-label="User input"
+                        required
+                    />
+
+                    <!-- Send Button -->
+                    <button type="submit" id="send-btn" class="icon-btn send-btn" title="அனுப்ப (Send)" aria-label="Send message">
+                        <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </footer>
+    </div>
+
+    <!-- Application Script -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
