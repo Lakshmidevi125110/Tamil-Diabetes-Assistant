@@ -40,6 +40,11 @@ def create_app():
                 }
             }), 200
 
+    # Favicon route
+    @app.route("/favicon.ico", methods=["GET"])
+    def favicon():
+        return "", 204
+
     # Global Error Handlers
     @app.errorhandler(400)
     def bad_request(error):

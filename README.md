@@ -1,6 +1,15 @@
 # 🩺 Tamil Voice Diabetes Assistant (தமிழ் குரல் சர்க்கரை நோய் வழிகாட்டி)
 
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)](https://palletsprojects.com/p/flask/)
+[![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini-orange.svg)](https://ai.google.dev/)
+[![Tests](https://img.shields.io/badge/Pytest-16%20Passed-brightgreen.svg)](tests/)
+[![Deploy](https://img.shields.io/badge/Deployed%20on-Render-46E3B7.svg)](https://tamil-diabetes-assistant.onrender.com)
+
 A voice-enabled AI health awareness assistant designed for Tamil and English speakers. It delivers conversational diabetes education, dietary guidelines, and lifestyle insights while enforcing strict medical safety guardrails.
+
+🔗 **Live Web Application**: [https://tamil-diabetes-assistant.onrender.com](https://tamil-diabetes-assistant.onrender.com)  
+📖 **Demo & Interview Guide**: See [`DEMO_GUIDE.md`](file:///c:/Users/LAKSHMI%20DEVI/Documents/Projects/Tamil-Diabetes-Assistant/DEMO_GUIDE.md) for 60-second elevator pitch and presentation script.
 
 ---
 
@@ -201,4 +210,4 @@ This repository includes a [`Procfile`](file:///c:/Users/LAKSHMI%20DEVI/Document
 - [x] **Module 6**: Safety guardrails, length limits, and edge case hardening.
 - [x] **Module 7**: Automated testing with pytest.
 - [x] **Module 8**: Cloud deployment (Render/HuggingFace).
-- [ ] **Module 9**: Portfolio polish, demo scripts, and final documentation.
+- [x] **Module 9**: Portfolio polish, demo scripts, and final documentation.
