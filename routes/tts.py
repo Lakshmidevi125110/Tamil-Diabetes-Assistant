@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, send_file
 import edge_tts
 from gtts import gTTS
 from config import Config
-from services.guardrails import tts_limiter
+from services.guardrails import tts_limiter, get_client_ip, MAX_TTS_INPUT_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +111,8 @@ def text_to_speech():
         }), 200
 
     try:
-        # Rate limit check for TTS requests
-        client_ip = request.remote_addr or "127.0.0.1"
+        # Rate limit check for TTS requests (respects reverse proxy IP headers)
+        client_ip = get_client_ip(request)
         if not tts_limiter.is_allowed(client_ip):
             logger.warning("TTS Rate limit exceeded for IP: %s", client_ip)
             return jsonify({"error": "TTS rate limit exceeded. Please wait a moment."}), 429
@@ -124,6 +124,11 @@ def text_to_speech():
         raw_text = data.get("text", "").strip()
         if not raw_text:
             return jsonify({"error": "The text field cannot be empty."}), 400
+
+        if len(raw_text) > MAX_TTS_INPUT_LENGTH:
+            return jsonify({
+                "error": f"Text exceeds maximum allowed length for speech synthesis ({MAX_TTS_INPUT_LENGTH} characters)."
+            }), 400
 
         language = data.get("language", "ta").strip().lower()
         lang_code = "en" if language == "en" else "ta"
@@ -147,6 +152,5 @@ def text_to_speech():
     except Exception as e:
         logger.error("Error generating text-to-speech audio: %s", str(e), exc_info=True)
         return jsonify({
-            "error": "Failed to synthesize speech audio.",
-            "details": str(e)
+            "error": "Failed to synthesize speech audio. Please try again later."
         }), 500

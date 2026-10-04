@@ -32,8 +32,19 @@ class SimpleRateLimiter:
 chat_limiter = SimpleRateLimiter(max_requests=15, window_seconds=60)
 tts_limiter = SimpleRateLimiter(max_requests=40, window_seconds=60)
 
-# Maximum allowed input length for queries
+# Maximum allowed input length for queries and speech
 MAX_INPUT_LENGTH = 500
+MAX_TTS_INPUT_LENGTH = 1000
+
+def get_client_ip(req) -> str:
+    """
+    Extracts the client IP address. Respects X-Forwarded-For header
+    when running behind a reverse proxy (such as Render or Gunicorn).
+    """
+    forwarded_for = req.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return req.remote_addr or "127.0.0.1"
 
 def validate_input_length(message: str, language: str = "ta") -> Tuple[bool, Optional[str]]:
     """

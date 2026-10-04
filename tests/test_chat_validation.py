@@ -31,3 +31,12 @@ def test_post_chat_exceeds_max_length(client):
     assert response.status_code == 400
     data = response.get_json()
     assert "too long" in data.get("error", "").lower()
+
+
+def test_security_headers_present(client):
+    """Test that defensive HTTP security headers are attached to responses."""
+    response = client.get("/")
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "SAMEORIGIN"
+    assert "strict-origin" in response.headers.get("Referrer-Policy", "")
+

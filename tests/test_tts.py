@@ -57,3 +57,12 @@ def test_post_tts_generates_mp3_audio_and_caches(client):
     # Ensure sentence is cached for instant future playback
     cache_key = ("ta", "வணக்கம்")
     assert cache_key in TTS_CACHE
+
+
+def test_post_tts_exceeds_max_length(client):
+    """Test that text exceeding 1000 characters is rejected with HTTP 400."""
+    oversized_text = "வணக்கம் " * 200  # >1000 characters
+    response = client.post("/tts", json={"text": oversized_text, "language": "ta"})
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "exceeds maximum allowed length" in data.get("error", "").lower()

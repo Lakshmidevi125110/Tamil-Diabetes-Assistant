@@ -4,7 +4,8 @@ from services.ai_service import generate_ai_response
 from services.guardrails import (
     chat_limiter,
     validate_input_length,
-    check_emergency_symptoms
+    check_emergency_symptoms,
+    get_client_ip
 )
 
 # Configure logger for this route
@@ -55,8 +56,8 @@ def chat():
     if language not in ("ta", "en"):
         language = "ta"
 
-    # 3. Security Guardrail: IP Rate Limiting
-    client_ip = request.remote_addr or "127.0.0.1"
+    # 3. Security Guardrail: IP Rate Limiting (respects reverse proxy IP headers)
+    client_ip = get_client_ip(request)
     if not chat_limiter.is_allowed(client_ip):
         logger.warning("Rate limit exceeded for IP: %s", client_ip)
         limit_msg = (

@@ -58,10 +58,22 @@ def create_app():
     def method_not_allowed(error):
         return jsonify({"error": "Method not allowed on this endpoint."}), 405
 
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        return jsonify({"error": "Request payload too large. Maximum allowed size is 1MB."}), 413
+
     @app.errorhandler(500)
     def internal_error(error):
         logger.error("Internal Server Error: %s", error)
         return jsonify({"error": "An internal server error occurred."}), 500
+
+    # Security Headers Middleware
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
     return app
 
