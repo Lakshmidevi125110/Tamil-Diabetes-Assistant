@@ -1,34 +1,41 @@
 /**
- * Tamil Voice Diabetes Assistant - Client Application
+ * Tamil Voice Diabetes Assistant - Client Application (Phase 1 Redesign)
  * Features:
- * - Bilingual Chat UI (Tamil & English)
- * - Browser Web Speech-to-Text (ta-IN & en-IN)
- * - Hybrid Text-to-Speech with Sentence Streaming:
- *     * Sentence-by-sentence prefetching via POST /tts (edge-tts / gTTS)
- *     * Immediate playback on first sentence arrival
- *     * In-memory caching on server for instant replay
- * - Visual Loading / "Preparing audio..." button state with double-click prevention
- * - Play / Stop audio toggle controls
- * - Medical Safety disclaimer banner & emergency guidelines
+ * - Professional Bilingual Healthcare UI (Tamil & English)
+ * - Browser Web Speech-to-Text with Live Interim Transcript Preview
+ * - Hybrid Text-to-Speech with Low-Latency Sentence Streaming (Edge-TTS / gTTS)
+ * - Categorized Suggested Question Cards (5 clinical categories)
+ * - Clear Chat History & Welcome Hero Card
+ * - One-Click Copy Response with Toast Feedback
+ * - Distinct High-Visibility Emergency Interceptor Styling (108 Guidance)
+ * - In-Memory Audio Caching & Session Cancellation
  */
 
-// 1. UI Localization & Speech Strings
+// 1. Localization Strings & Categorized Clinical Topics
 const I18N = {
     ta: {
         title: "தமிழ் குரல் சர்க்கரை நோய் வழிகாட்டி",
-        subtitle: "Tamil Voice Diabetes Assistant • கல்வி வழிகாட்டி",
-        disclaimer: `<strong>மருத்துவ எச்சரிக்கை:</strong> இது பொது விழிப்புணர்வு வழிகாட்டி மட்டுமே. மருத்துவ ஆலோசனை அல்ல. அவசர அறிகுறிகள் (மயக்கம், தீவிர நடுக்கம்) ஏற்பட்டால் உடனடியாக <strong>108</strong> அவசர சிகிச்சையை அழைக்கவும்.`,
+        subtitle: "Tamil Voice Diabetes Assistant • கல்வி வழிகாட்டி தளம்",
+        eduBadge: "கல்வி விழிப்புணர்வு தளம்",
+        disclaimer: `<strong>மருத்துவ எச்சரிக்கை:</strong> இது பொது விழிப்புணர்வு வழிகாட்டி மட்டுமே. மருத்துவ ஆலோசனை அல்ல. அவசர அறிகுறிகள் (மயக்கம், தீவிர நடுக்கம், நெஞ்சு வலி) ஏற்பட்டால் உடனடியாக <strong>108</strong> அவசர சிகிச்சையை அழைக்கவும்.`,
         placeholder: "உங்கள் கேள்வியை இங்கே தட்டச்சு செய்யவும் அல்லது மைக் அழுத்தவும்...",
-        chipsLabel: "பரிந்துரைக்கப்பட்ட கேள்விகள்:",
-        welcome: "வணக்கம்! நான் உங்கள் சர்க்கரை நோய் விழிப்புணர்வு வழிகாட்டி. மைக் பொத்தானை அழுத்தி பேசலாம் அல்லது தட்டச்சு செய்யலாம்.",
-        prompts: [
-            "சர்க்கரை நோயாளிகள் ஆப்பிள் சாப்பிடலாமா?",
-            "இரத்த சர்க்கரையை கட்டுப்படுத்த சிறந்த உடற்பயிற்சிகள் என்ன?",
-            "குறைந்த சர்க்கரை அளவு (Hypoglycemia) அறிகுறிகள் என்ன?",
-            "வெண்டைக்காய் சர்க்கரை நோய்க்கு நல்லதா?"
+        privacyNote: "🔒 மருத்துவ ஆலோசனைக்கு உங்கள் மருத்துவரை அணுகவும் • பொது விழிப்புணர்வு வழிகாட்டி",
+        clearChat: "அழிக்க",
+        clearChatTooltip: "அரட்டையை அழிக்க (Clear Chat)",
+        suggestionsTitle: "வழிகாட்டல் தலைப்புகள்:",
+        hideSuggestions: "மறைக்க (Hide)",
+        showSuggestions: "காட்டுக (Show)",
+        welcomeTitle: "வணக்கம்! உங்கள் நீரிழிவு விழிப்புணர்வு வழிகாட்டிக்கு நல்வரவு.",
+        welcomeSubtitle: "உணவு முறை, உடற்பயிற்சி மற்றும் வாழ்க்கை முறை குறித்த சந்தேகங்களை கேட்கலாம்.",
+        welcomeDesc: "இந்த தளம் நீரிழிவு நோய் மேலாண்மை குறித்த மருத்துவ ரீதியாக சரிபார்க்கப்பட்ட பொது கல்வித் தகவல்களை குரல் மற்றும் உரை வடிவில் வழங்குகிறது. கீழேயுள்ள வழிகாட்டல் தலைப்புகளை தேர்வு செய்யலாம் அல்லது மைக் மூலம் பேசலாம்.",
+        pillars: [
+            { icon: "🥗", text: "சமச்சீர் உணவு & காய்கறிகள்" },
+            { icon: "🏃", text: "தினசரி உடற்பயிற்சி நெறிமுறைகள்" },
+            { icon: "🩸", text: "சர்க்கரை அளவுகள் விழிப்புணர்வு" },
+            { icon: "⚠️", text: "108 அவசர கால பாதுகாப்பு" }
         ],
         errorMsg: "மன்னிக்கவும்! சர்வரை தொடர்பு கொள்ள முடியவில்லை. உங்கள் இணைய இணைப்பை சரிபார்க்கவும்.",
-        thinking: "சிந்திக்கிறது...",
+        thinking: "AI பதிலளிக்கிறது...",
         listening: "🎙️ கேட்கிறது... இப்போது பேசுங்கள்...",
         speechNotSupported: "⚠️ உங்கள் உலாவியில் குரல் அறிதல் (Speech Recognition) வசதி ஆதரிக்கப்படவில்லை. சிறந்த அனுபவத்திற்கு Google Chrome அல்லது Microsoft Edge-ஐப் பயன்படுத்தவும். அல்லது கீழேயுள்ள பெட்டியில் தட்டச்சு செய்யவும்.",
         micPermissionDenied: "⚠️ மைக்ரோஃபோன் அணுகல் மறுக்கப்பட்டது. உலாவியின் அமைப்புகளில் மைக் அனுமதியை வழங்கிவிட்டு மீண்டும் முயற்சிக்கவும்.",
@@ -36,44 +43,164 @@ const I18N = {
         micTooltipIdle: "குரல் மூலம் பேச (Speak)",
         playAudio: "குரலில் கேட்க (Listen)",
         stopAudio: "ஒலிப்பதை நிறுத்த (Stop audio)",
-        preparingAudio: "ஆடியோ தயாராகிறது... (Preparing audio...)",
-        ttsErrorMsg: "மன்னிக்கவும்! குரல் ஒலியை உருவாக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்."
+        preparingAudio: "ஆடியோ தயாராகிறது...",
+        ttsErrorMsg: "மன்னிக்கவும்! குரல் ஒலியை உருவாக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்.",
+        copyText: "நகலெடுக்க (Copy)",
+        copiedText: "நகலெடுக்கப்பட்டது! (Copied)",
+        emergencyBadge: "🚨 அவசர மருத்துவ எச்சரிக்கை (EMERGENCY 108)",
+        categories: [
+            {
+                id: "basics",
+                name: "நீரிழிவு அடிப்படைகள்",
+                icon: "🩺",
+                questions: [
+                    "சர்க்கரை நோய் என்றால் என்ன? அதன் முக்கிய வகைகள் யாவை?",
+                    "சாதாரண இரத்த சர்க்கரை அளவு (Fasting & PP) எவ்வளவு இருக்க வேண்டும்?",
+                    "டைப் 1 மற்றும் டைப் 2 நீரிழிவு இடையே உள்ள வித்தியாசம் என்ன?"
+                ]
+            },
+            {
+                id: "nutrition",
+                name: "உணவு & ஊட்டச்சத்து",
+                icon: "🥗",
+                questions: [
+                    "சர்க்கரை நோயாளிகள் ஆப்பிள் மற்றும் கொய்யாப்பழம் சாப்பிடலாமா?",
+                    "வெண்டைக்காய் மற்றும் பாகற்காய் சர்க்கரை நோய்க்கு நல்லதா?",
+                    "வெள்ளை அரிசிக்கு பதிலாக சிறுதானியங்கள் சாப்பிடலாமா?"
+                ]
+            },
+            {
+                id: "lifestyle",
+                name: "உடற்பயிற்சி & வாழ்க்கை முறை",
+                icon: "🏃",
+                questions: [
+                    "இரத்த சர்க்கரையை கட்டுப்படுத்த தினமும் எவ்வளவு நேரம் நடைபயிற்சி செய்ய வேண்டும்?",
+                    "உடற்பயிற்சி செய்வதற்கு முன் மற்றும் பின் என்ன சாப்பிட வேண்டும்?",
+                    "தூக்கமின்மை மற்றும் மன அழுத்தம் சர்க்கரை அளவை அதிகரிக்குமா?"
+                ]
+            },
+            {
+                id: "symptoms",
+                name: "அறிகுறிகள் & விழிப்புணர்வு",
+                icon: "🔍",
+                questions: [
+                    "குறைந்த சர்க்கரை அளவு (Hypoglycemia) அறிகுறிகள் என்ன?",
+                    "அதிக சர்க்கரை அளவு (Hyperglycemia) எச்சரிக்கை அறிகுறிகள் யாவை?",
+                    "நீரிழிவு நோயாளிகள் பாதங்களை எவ்வாறு பராமரிக்க வேண்டும்?"
+                ]
+            },
+            {
+                id: "prevention",
+                name: "தடுப்பு & பொது கல்வி",
+                icon: "🛡️",
+                questions: [
+                    "நீரிழிவு நோய் வராமல் தடுக்க என்ன வாழ்க்கை முறை மாற்றங்கள் தேவை?",
+                    "HbA1c பரிசோதனை என்றால் என்ன? அதை எப்போது செய்ய வேண்டும்?",
+                    "குடும்பத்தில் யாருக்காவது சர்க்கரை நோய் இருந்தால் எனக்கு வருமா?"
+                ]
+            }
+        ]
     },
     en: {
         title: "Tamil Voice Diabetes Assistant",
-        subtitle: "Bilingual Health Awareness & Educational Guide",
-        disclaimer: `<strong>Medical Notice:</strong> This assistant provides general educational awareness only, not medical advice. If experiencing emergencies (severe shakiness, fainting), call <strong>108 / Emergency</strong> immediately.`,
+        subtitle: "Bilingual Health Awareness & Voice-Enabled Education Platform",
+        eduBadge: "Educational Awareness Platform",
+        disclaimer: `<strong>Medical Notice:</strong> This assistant provides general educational awareness only, not medical advice. If experiencing emergencies (severe shakiness, fainting, chest pain), call <strong>108 / Emergency Services</strong> immediately.`,
         placeholder: "Type your diabetes question here or click the mic...",
-        chipsLabel: "Recommended Questions:",
-        welcome: "Hello! I am your Diabetes Educational Assistant. Click the microphone to speak or type your question below.",
-        prompts: [
-            "Can diabetic patients eat apples?",
-            "What exercises help lower blood sugar?",
-            "What are common symptoms of low blood sugar?",
-            "Is brown rice better than white rice for diabetics?"
+        privacyNote: "🔒 Always consult your licensed physician for medical advice • General Educational Guide",
+        clearChat: "Clear",
+        clearChatTooltip: "Clear chat history",
+        suggestionsTitle: "Suggested Topics:",
+        hideSuggestions: "Hide",
+        showSuggestions: "Show",
+        welcomeTitle: "Welcome to your Diabetes Educational Assistant.",
+        welcomeSubtitle: "Ask dietary questions, exercise guidelines, and blood sugar awareness.",
+        welcomeDesc: "This platform provides verified health awareness information with voice narration in Tamil and English. Select any suggested topic below or speak directly using your microphone.",
+        pillars: [
+            { icon: "🥗", text: "Balanced Diet & Low-GI Foods" },
+            { icon: "🏃", text: "Daily Physical Activity Tips" },
+            { icon: "🩸", text: "Blood Glucose Awareness" },
+            { icon: "⚠️", text: "108 Urgent Emergency Safety" }
         ],
         errorMsg: "Sorry! Unable to reach the server. Please check your connection.",
-        thinking: "Thinking...",
+        thinking: "AI is responding...",
         listening: "🎙️ Listening... Speak now...",
-        speechNotSupported: "⚠️ Speech recognition is not supported in this browser. For the best experience, please use Google Chrome or Microsoft Edge, or type your question.",
+        speechNotSupported: "⚠️ Speech recognition is not supported in this browser. For the best experience, please use Google Chrome or Microsoft Edge, or type your question below.",
         micPermissionDenied: "⚠️ Microphone access was denied. Please allow microphone permission in your browser settings and try again.",
         micTooltipActive: "Click to stop listening",
         micTooltipIdle: "Speak your question",
         playAudio: "Listen to reply",
         stopAudio: "Stop audio",
         preparingAudio: "Preparing audio...",
-        ttsErrorMsg: "Sorry! Unable to generate voice audio. Please try again."
+        ttsErrorMsg: "Sorry! Unable to generate voice audio. Please try again.",
+        copyText: "Copy",
+        copiedText: "Copied!",
+        emergencyBadge: "🚨 CRITICAL MEDICAL EMERGENCY ALERT (Call 108)",
+        categories: [
+            {
+                id: "basics",
+                name: "Diabetes Basics",
+                icon: "🩺",
+                questions: [
+                    "What is diabetes and what are its primary types?",
+                    "What are normal fasting and post-meal blood sugar levels?",
+                    "What is the difference between Type 1 and Type 2 diabetes?"
+                ]
+            },
+            {
+                id: "nutrition",
+                name: "Food & Nutrition",
+                icon: "🥗",
+                questions: [
+                    "Can diabetic patients eat apples and guavas?",
+                    "Are ladies finger and bitter gourd good for diabetes?",
+                    "Can diabetics replace white rice with millets or brown rice?"
+                ]
+            },
+            {
+                id: "lifestyle",
+                name: "Exercise & Lifestyle",
+                icon: "🏃",
+                questions: [
+                    "How much daily walking is recommended to lower blood sugar?",
+                    "What should diabetics eat before and after workouts?",
+                    "Does poor sleep and stress directly increase blood sugar levels?"
+                ]
+            },
+            {
+                id: "symptoms",
+                name: "Symptoms & Awareness",
+                icon: "🔍",
+                questions: [
+                    "What are common symptoms of low blood sugar (Hypoglycemia)?",
+                    "What are common symptoms of high blood sugar (Hyperglycemia)?",
+                    "How should diabetic patients inspect and care for their feet?"
+                ]
+            },
+            {
+                id: "prevention",
+                name: "Prevention & Education",
+                icon: "🛡️",
+                questions: [
+                    "What lifestyle modifications help prevent Type 2 diabetes?",
+                    "What is an HbA1c test and how often should it be checked?",
+                    "If a family member has diabetes, what is my risk level?"
+                ]
+            }
+        ]
     }
 };
 
 // 2. Application State
 let currentLang = 'ta';
+let activeCategory = 'basics';
 let isProcessing = false;
 let isRecording = false;
 let recognition = null;
 let cachedVoices = [];
+let suggestionsVisible = true;
 
-// Speech Playback & Queue State
+// Speech Playback & Streaming State
 let activeSpeechBtn = null;
 let currentAudio = null;
 let currentAudioUrlList = [];
@@ -87,13 +214,28 @@ const chatForm = document.getElementById('chat-form');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 const micBtn = document.getElementById('mic-btn');
+const charCounter = document.getElementById('char-counter');
 const langBtnTa = document.getElementById('lang-ta');
 const langBtnEn = document.getElementById('lang-en');
+const clearChatBtn = document.getElementById('clear-chat-btn');
+const clearChatText = document.getElementById('clear-chat-text');
 const appTitle = document.getElementById('app-title');
 const appSubtitle = document.getElementById('app-subtitle');
+const eduBadgeText = document.getElementById('edu-badge-text');
 const disclaimerText = document.getElementById('disclaimer-text');
-const chipsLabel = document.getElementById('chips-label');
-const chipsList = document.getElementById('chips-list');
+const privacyNote = document.getElementById('privacy-note');
+const suggestionsSection = document.getElementById('suggestions-section');
+const suggestionsTitle = document.getElementById('suggestions-title');
+const toggleSuggestionsBtn = document.getElementById('toggle-suggestions-btn');
+const toggleSuggestionsText = document.getElementById('toggle-suggestions-text');
+const categoryTabs = document.getElementById('category-tabs');
+const questionCardsGrid = document.getElementById('question-cards-grid');
+
+// Voice Preview Elements
+const voicePreviewBar = document.getElementById('voice-preview-bar');
+const voiceStatusText = document.getElementById('voice-status-text');
+const voiceTranscriptText = document.getElementById('voice-transcript-text');
+const stopRecordingBtn = document.getElementById('stop-recording-btn');
 
 // 4. SVG Icons
 const PLAY_ICON_SVG = `
@@ -123,20 +265,31 @@ const LOADING_ICON_SVG = `
     </svg>
 `;
 
-// 5. Helper: Format current time
+const COPY_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+`;
+
+const CHECK_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+`;
+
+// 5. Utility Helpers
 function getCurrentTime() {
     const now = new Date();
     return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// 6. Helper: Escape HTML to prevent XSS
 function escapeHTML(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
 
-// 7. Clean text before passing to Text-to-Speech (strips emojis, ⚠️, markdown)
 function cleanTextForSpeech(text) {
     return text
         .replace(/⚠️/g, '')
@@ -150,18 +303,16 @@ function cleanTextForSpeech(text) {
         .trim();
 }
 
-// 8. Split text into individual sentences for streamed playback
 function splitIntoSentences(text) {
     const cleaned = cleanTextForSpeech(text);
     if (!cleaned) return [];
-    // Split on sentence-ending punctuation (. ! ? \n) followed by whitespace
     const parts = cleaned.split(/(?<=[.!?\n])\s+/);
     return parts
         .map(s => s.trim())
         .filter(s => s.length > 0 && !/^[\s.,!?-]+$/.test(s));
 }
 
-// 9. Load and Cache Browser Synthesis Voices
+// 6. Voice Synthesis Setup
 function loadVoices() {
     if ('speechSynthesis' in window) {
         cachedVoices = window.speechSynthesis.getVoices();
@@ -173,7 +324,6 @@ if ('speechSynthesis' in window) {
     loadVoices();
 }
 
-// 10. Check if a matching browser voice exists for language
 function findMatchingBrowserVoice(lang) {
     if (!('speechSynthesis' in window)) return null;
     if (cachedVoices.length === 0) loadVoices();
@@ -192,43 +342,37 @@ function findMatchingBrowserVoice(lang) {
     }
 }
 
-// 11. Stop All Audio Playback & In-Flight Sentence Requests
+// 7. Stop Speech Audio
 function stopSpeech() {
-    // 1. Cancel browser speech
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
     }
-    // 2. Abort any in-flight /tts fetch requests
     if (activeAbortController) {
         activeAbortController.abort();
         activeAbortController = null;
     }
-    // 3. Invalidate current playback session
     activePlaybackSessionId++;
 
-    // 4. Stop and reset HTML5 Audio element
     if (currentAudio) {
         currentAudio.pause();
         currentAudio.currentTime = 0;
         currentAudio = null;
     }
 
-    // 5. Revoke all allocated object URLs
     currentAudioUrlList.forEach(url => {
         try { URL.revokeObjectURL(url); } catch (e) {}
     });
     currentAudioUrlList = [];
 
-    // 6. Reset button UI
     if (activeSpeechBtn) {
-        activeSpeechBtn.innerHTML = PLAY_ICON_SVG;
+        activeSpeechBtn.innerHTML = `${PLAY_ICON_SVG} <span>${I18N[currentLang].playAudio}</span>`;
         activeSpeechBtn.classList.remove('speaking', 'loading');
         activeSpeechBtn.title = I18N[currentLang].playAudio;
         activeSpeechBtn = null;
     }
 }
 
-// 12. Fetch Single Sentence Audio from Server /tts
+// 8. Streamed Speech Audio Playback
 async function fetchSentenceAudio(sentence, lang, signal) {
     const response = await fetch('/tts', {
         method: 'POST',
@@ -248,22 +392,18 @@ async function fetchSentenceAudio(sentence, lang, signal) {
     return URL.createObjectURL(blob);
 }
 
-// 13. Speak Text with Sentence Streaming & Loading States
 async function speakText(text, lang, btnElement) {
-    // If clicked while active or preparing, click acts as STOP
     if (activeSpeechBtn === btnElement) {
         stopSpeech();
         return;
     }
 
-    // Stop any existing speech
     stopSpeech();
 
     const cleanText = cleanTextForSpeech(text);
     if (!cleanText) return;
 
-    // 1. Set "Preparing audio..." state & disable double-clicks
-    btnElement.innerHTML = LOADING_ICON_SVG;
+    btnElement.innerHTML = `${LOADING_ICON_SVG} <span>${I18N[currentLang].preparingAudio}</span>`;
     btnElement.classList.add('loading');
     btnElement.title = I18N[currentLang].preparingAudio;
     activeSpeechBtn = btnElement;
@@ -271,13 +411,11 @@ async function speakText(text, lang, btnElement) {
     const currentSession = ++activePlaybackSessionId;
     activeAbortController = new AbortController();
 
-    // Check if browser has a native voice for this language
     const matchingVoice = findMatchingBrowserVoice(lang);
 
     if (matchingVoice) {
-        // --- PATH A: Browser Native SpeechSynthesis ---
         btnElement.classList.remove('loading');
-        btnElement.innerHTML = STOP_ICON_SVG;
+        btnElement.innerHTML = `${STOP_ICON_SVG} <span>${I18N[currentLang].stopAudio}</span>`;
         btnElement.classList.add('speaking');
         btnElement.title = I18N[currentLang].stopAudio;
 
@@ -294,7 +432,6 @@ async function speakText(text, lang, btnElement) {
 
         window.speechSynthesis.speak(utterance);
     } else {
-        // --- PATH B: Server-Side Streamed Sentence Pipeline (edge-tts / gTTS) ---
         const sentences = splitIntoSentences(text);
         if (sentences.length === 0) {
             stopSpeech();
@@ -302,25 +439,20 @@ async function speakText(text, lang, btnElement) {
         }
 
         try {
-            // Step 1: Pre-launch fetches for all sentences
-            // sentencePromises will resolve to audio URLs in order
             const sentenceAudioPromises = sentences.map(sentence => 
                 fetchSentenceAudio(sentence, lang, activeAbortController.signal)
             );
 
-            // Step 2: Await ONLY the first sentence to start playback immediately!
             const firstAudioUrl = await sentenceAudioPromises[0];
             if (activePlaybackSessionId !== currentSession) return;
 
             currentAudioUrlList.push(firstAudioUrl);
 
-            // Audio is ready: change button from Loading -> Playing (Stop button)
             btnElement.classList.remove('loading');
-            btnElement.innerHTML = STOP_ICON_SVG;
+            btnElement.innerHTML = `${STOP_ICON_SVG} <span>${I18N[currentLang].stopAudio}</span>`;
             btnElement.classList.add('speaking');
             btnElement.title = I18N[currentLang].stopAudio;
 
-            // Sequential audio player function
             let currentIdx = 0;
 
             const playNextSentence = async () => {
@@ -332,7 +464,6 @@ async function speakText(text, lang, btnElement) {
                 }
 
                 try {
-                    // Await the next pre-fetched sentence audio URL
                     const audioUrl = await sentenceAudioPromises[currentIdx];
                     if (activePlaybackSessionId !== currentSession) return;
 
@@ -348,7 +479,7 @@ async function speakText(text, lang, btnElement) {
                     currentAudio.onerror = (e) => {
                         console.error("Audio sentence playback error:", e);
                         stopSpeech();
-                        appendMessage('assistant', I18N[currentLang].ttsErrorMsg, true);
+                        appendMessage('assistant', I18N[currentLang].ttsErrorMsg, false, true);
                     };
 
                     await currentAudio.play();
@@ -356,57 +487,93 @@ async function speakText(text, lang, btnElement) {
                     if (activePlaybackSessionId === currentSession) {
                         console.error("Error playing sentence audio:", playErr);
                         stopSpeech();
-                        appendMessage('assistant', I18N[currentLang].ttsErrorMsg, true);
+                        appendMessage('assistant', I18N[currentLang].ttsErrorMsg, false, true);
                     }
                 }
             };
 
-            // Start playing sentence sequence
             playNextSentence();
 
         } catch (fetchErr) {
             if (activePlaybackSessionId === currentSession) {
                 console.error("Error fetching streamed TTS sentences:", fetchErr);
                 stopSpeech();
-                appendMessage('assistant', I18N[currentLang].ttsErrorMsg, true);
+                appendMessage('assistant', I18N[currentLang].ttsErrorMsg, false, true);
             }
         }
     }
 }
 
-// 14. Append Message Bubble to Chat
-function appendMessage(sender, text, isError = false) {
+// 9. Copy Text to Clipboard
+async function copyMessageText(text, btnElement) {
+    try {
+        await navigator.clipboard.writeText(text);
+        const originalHTML = btnElement.innerHTML;
+        btnElement.innerHTML = `${CHECK_ICON_SVG} <span>${I18N[currentLang].copiedText}</span>`;
+        btnElement.classList.add('copied');
+        setTimeout(() => {
+            btnElement.innerHTML = originalHTML;
+            btnElement.classList.remove('copied');
+        }, 2000);
+    } catch (err) {
+        console.warn("Unable to copy to clipboard:", err);
+    }
+}
+
+// 10. Append Message Bubble
+function appendMessage(sender, text, isEmergency = false, isError = false) {
     const row = document.createElement('div');
     row.className = `message-row ${sender}`;
+    if (isEmergency) row.classList.add('emergency');
 
     const avatar = document.createElement('div');
     avatar.className = 'msg-avatar';
-    avatar.textContent = sender === 'user' ? '👤' : '🩺';
+    avatar.textContent = sender === 'user' ? '👤' : (isEmergency ? '🚨' : '🩺');
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     if (isError) bubble.style.borderColor = '#f87171';
 
-    // Format newlines into line breaks
-    const formattedText = escapeHTML(text).replace(/\n/g, '<br>');
-    bubble.innerHTML = formattedText;
+    // If emergency, show distinct urgent badge
+    if (isEmergency) {
+        const emergencyTag = document.createElement('div');
+        emergencyTag.className = 'emergency-tag';
+        emergencyTag.textContent = I18N[currentLang].emergencyBadge;
+        bubble.appendChild(emergencyTag);
+    }
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'bubble-content';
+    contentDiv.innerHTML = escapeHTML(text).replace(/\n/g, '<br>');
+    bubble.appendChild(contentDiv);
 
     const meta = document.createElement('div');
     meta.className = 'bubble-meta';
 
-    const senderLabel = sender === 'user' ? (currentLang === 'ta' ? 'நீங்கள்' : 'You') : 'Assistant';
+    const senderLabel = sender === 'user' 
+        ? (currentLang === 'ta' ? 'நீங்கள் (You)' : 'You') 
+        : (isEmergency ? '108 Emergency Protocol' : 'Health Assistant');
     
     let speechBtn = null;
+
     if (sender === 'assistant' && !isError) {
         meta.innerHTML = `
-            <span>${senderLabel}</span>
-            <div class="meta-right">
-                <span>${getCurrentTime()}</span>
-                <button type="button" class="speech-btn" title="${I18N[currentLang].playAudio}" aria-label="Play reply">
-                    ${PLAY_ICON_SVG}
+            <span>${senderLabel} • ${getCurrentTime()}</span>
+            <div class="bubble-actions">
+                <button type="button" class="bubble-btn copy-btn" title="${I18N[currentLang].copyText}" aria-label="Copy message text">
+                    ${COPY_ICON_SVG} <span>${I18N[currentLang].copyText}</span>
+                </button>
+                <button type="button" class="bubble-btn speech-btn" title="${I18N[currentLang].playAudio}" aria-label="Play reply aloud">
+                    ${PLAY_ICON_SVG} <span>${I18N[currentLang].playAudio}</span>
                 </button>
             </div>
         `;
+
+        const copyBtn = meta.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', () => {
+            copyMessageText(text, copyBtn);
+        });
+
         speechBtn = meta.querySelector('.speech-btn');
         speechBtn.addEventListener('click', () => {
             speakText(text, currentLang, speechBtn);
@@ -420,13 +587,42 @@ function appendMessage(sender, text, isError = false) {
     row.appendChild(bubble);
     chatMessages.appendChild(row);
 
-    // Auto-scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    // Auto-scroll smoothly
+    row.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
     return speechBtn;
 }
 
-// 15. Animated Typing Indicator
+// 11. Welcome Hero Card
+function renderWelcomeCard() {
+    const t = I18N[currentLang];
+    const welcomeDiv = document.createElement('div');
+    welcomeDiv.className = 'welcome-card';
+    welcomeDiv.id = 'welcome-card';
+
+    welcomeDiv.innerHTML = `
+        <div class="welcome-header">
+            <div class="welcome-icon-box" aria-hidden="true">🩺</div>
+            <div class="welcome-title-group">
+                <h2>${t.welcomeTitle}</h2>
+                <p>${t.welcomeSubtitle}</p>
+            </div>
+        </div>
+        <p class="welcome-desc">${t.welcomeDesc}</p>
+        <div class="welcome-pillars">
+            ${t.pillars.map(p => `
+                <div class="pillar-item">
+                    <span class="pillar-emoji">${p.icon}</span>
+                    <span>${p.text}</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    chatMessages.appendChild(welcomeDiv);
+}
+
+// 12. Typing Indicator
 function showTypingIndicator() {
     const row = document.createElement('div');
     row.className = 'message-row assistant';
@@ -439,17 +635,20 @@ function showTypingIndicator() {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.innerHTML = `
-        <div class="typing-indicator" aria-label="${I18N[currentLang].thinking}">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
+        <div class="typing-bubble" aria-label="${I18N[currentLang].thinking}">
+            <span class="typing-status-text">${I18N[currentLang].thinking}</span>
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
         </div>
     `;
 
     row.appendChild(avatar);
     row.appendChild(bubble);
     chatMessages.appendChild(row);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+    row.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
 function removeTypingIndicator() {
@@ -457,66 +656,107 @@ function removeTypingIndicator() {
     if (typingRow) typingRow.remove();
 }
 
-// 16. Render Suggestion Chips
-function renderChips() {
-    chipsList.innerHTML = '';
-    const prompts = I18N[currentLang].prompts;
-    prompts.forEach(promptText => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'chip-btn';
-        btn.textContent = promptText;
-        btn.addEventListener('click', () => {
+// 13. Render Categorized Question Cards
+function renderCategoriesAndQuestions() {
+    const categories = I18N[currentLang].categories;
+    categoryTabs.innerHTML = '';
+
+    // Render Category Tabs
+    categories.forEach(cat => {
+        const tabBtn = document.createElement('button');
+        tabBtn.type = 'button';
+        tabBtn.className = `category-tab-btn ${cat.id === activeCategory ? 'active' : ''}`;
+        tabBtn.innerHTML = `<span>${cat.icon}</span> <span>${cat.name}</span>`;
+        tabBtn.setAttribute('role', 'tab');
+        tabBtn.setAttribute('aria-selected', cat.id === activeCategory ? 'true' : 'false');
+
+        tabBtn.addEventListener('click', () => {
+            activeCategory = cat.id;
+            renderCategoriesAndQuestions();
+        });
+
+        categoryTabs.appendChild(tabBtn);
+    });
+
+    // Render Question Cards for Active Category
+    questionCardsGrid.innerHTML = '';
+    const currentCatObj = categories.find(c => c.id === activeCategory) || categories[0];
+
+    currentCatObj.questions.forEach(qText => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'question-card';
+        card.innerHTML = `
+            <span class="question-icon" aria-hidden="true">${currentCatObj.icon}</span>
+            <span class="question-text">${escapeHTML(qText)}</span>
+        `;
+
+        card.addEventListener('click', () => {
             if (!isProcessing) {
                 lastInputWasVoice = false;
-                userInput.value = promptText;
+                userInput.value = qText;
                 handleMessageSubmit();
             }
         });
-        chipsList.appendChild(btn);
+
+        questionCardsGrid.appendChild(card);
     });
 }
 
-// 17. Update UI Language
+// 14. Language Toggle Handler
 function setLanguage(lang) {
     currentLang = lang;
     stopSpeech();
 
-    // Toggle button active state
     if (lang === 'ta') {
         langBtnTa.classList.add('active');
+        langBtnTa.setAttribute('aria-pressed', 'true');
         langBtnEn.classList.remove('active');
+        langBtnEn.setAttribute('aria-pressed', 'false');
     } else {
         langBtnEn.classList.add('active');
+        langBtnEn.setAttribute('aria-pressed', 'true');
         langBtnTa.classList.remove('active');
+        langBtnTa.setAttribute('aria-pressed', 'false');
     }
 
-    // Update localized text
     const t = I18N[lang];
     appTitle.textContent = t.title;
     appSubtitle.textContent = t.subtitle;
+    eduBadgeText.textContent = t.eduBadge;
     disclaimerText.innerHTML = t.disclaimer;
+    privacyNote.textContent = t.privacyNote;
+    clearChatText.textContent = t.clearChat;
+    clearChatBtn.title = t.clearChatTooltip;
     userInput.placeholder = t.placeholder;
-    chipsLabel.textContent = t.chipsLabel;
+    suggestionsTitle.textContent = t.suggestionsTitle;
+    toggleSuggestionsText.textContent = suggestionsVisible ? t.hideSuggestions : t.showSuggestions;
     micBtn.title = isRecording ? t.micTooltipActive : t.micTooltipIdle;
 
-    renderChips();
+    renderCategoriesAndQuestions();
 
-    // If speech recognition is active, update its language
+    // Re-render chat messages with new welcome card
+    resetChat();
+
     if (recognition) {
         recognition.lang = currentLang === 'ta' ? 'ta-IN' : 'en-IN';
     }
 }
 
-// 18. Send Message Handler
+// 15. Reset Chat
+function resetChat() {
+    stopSpeech();
+    chatMessages.innerHTML = '';
+    renderWelcomeCard();
+}
+
+// 16. Message Submission
 async function handleMessageSubmit() {
     const message = userInput.value.trim();
     if (!message || isProcessing) return;
 
-    // Stop ongoing speech when user submits a new query
     stopSpeech();
 
-    // Stop recording if active
     if (isRecording && recognition) {
         recognition.stop();
     }
@@ -524,23 +764,20 @@ async function handleMessageSubmit() {
     const triggeredByVoice = lastInputWasVoice;
     lastInputWasVoice = false;
 
-    // 1. Display User Message
+    // Display user bubble
     appendMessage('user', message);
     userInput.value = '';
+    charCounter.textContent = '0/500';
     userInput.focus();
 
-    // 2. Set Loading State
     isProcessing = true;
     sendBtn.disabled = true;
     showTypingIndicator();
 
     try {
-        // 3. Send POST request to Flask backend
         const response = await fetch('/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: message,
                 language: currentLang
@@ -550,27 +787,28 @@ async function handleMessageSubmit() {
         const data = await response.json();
         removeTypingIndicator();
 
-        if (response.ok && data.status === 'success') {
-            const speechBtn = appendMessage('assistant', data.reply);
-            // If the user spoke their question aloud, speak the response aloud automatically!
+        if (response.ok && (data.status === 'success' || data.status === 'emergency')) {
+            const isEmergency = data.status === 'emergency';
+            const speechBtn = appendMessage('assistant', data.reply, isEmergency, false);
+
             if (triggeredByVoice && speechBtn) {
                 speakText(data.reply, currentLang, speechBtn);
             }
         } else {
             const err = data.error || I18N[currentLang].errorMsg;
-            appendMessage('assistant', `⚠️ ${err}`, true);
+            appendMessage('assistant', `⚠️ ${err}`, false, true);
         }
     } catch (err) {
         console.error('Network Error:', err);
         removeTypingIndicator();
-        appendMessage('assistant', `⚠️ ${I18N[currentLang].errorMsg}`, true);
+        appendMessage('assistant', `⚠️ ${I18N[currentLang].errorMsg}`, false, true);
     } finally {
         isProcessing = false;
         sendBtn.disabled = false;
     }
 }
 
-// 19. Speech-to-Text Setup (Web Speech API)
+// 17. Speech-to-Text Setup
 function setupSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -587,64 +825,60 @@ function setupSpeechRecognition() {
     recognition.maxAlternatives = 1;
     recognition.lang = currentLang === 'ta' ? 'ta-IN' : 'en-IN';
 
-    // When voice recording begins
     recognition.onstart = () => {
         isRecording = true;
         lastInputWasVoice = true;
         stopSpeech();
         micBtn.classList.add('recording');
         micBtn.title = I18N[currentLang].micTooltipActive;
-        userInput.placeholder = I18N[currentLang].listening;
+        voicePreviewBar.classList.remove('hidden');
+        voiceStatusText.textContent = I18N[currentLang].listening;
+        voiceTranscriptText.textContent = '';
     };
 
-    // When speech recognition receives audio results
     recognition.onresult = (event) => {
         let transcript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             transcript += event.results[i][0].transcript;
         }
         userInput.value = transcript;
+        voiceTranscriptText.textContent = transcript || '...';
+        charCounter.textContent = `${transcript.length}/500`;
     };
 
-    // When voice recording ends
     recognition.onend = () => {
         isRecording = false;
         micBtn.classList.remove('recording');
         micBtn.title = I18N[currentLang].micTooltipIdle;
-        userInput.placeholder = I18N[currentLang].placeholder;
+        voicePreviewBar.classList.add('hidden');
 
-        // Auto-submit recognized speech
         const spokenText = userInput.value.trim();
         if (spokenText && !isProcessing) {
             handleMessageSubmit();
         }
     };
 
-    // When an error occurs during speech recognition
     recognition.onerror = (event) => {
         console.warn('Speech recognition error:', event.error);
         isRecording = false;
         lastInputWasVoice = false;
         micBtn.classList.remove('recording');
         micBtn.title = I18N[currentLang].micTooltipIdle;
-        userInput.placeholder = I18N[currentLang].placeholder;
+        voicePreviewBar.classList.add('hidden');
 
         if (event.error === 'not-allowed') {
-            appendMessage('assistant', I18N[currentLang].micPermissionDenied, true);
-        } else if (event.error === 'no-speech') {
-            // User stayed silent
+            appendMessage('assistant', I18N[currentLang].micPermissionDenied, false, true);
         } else if (event.error === 'network') {
-            appendMessage('assistant', I18N[currentLang].errorMsg, true);
+            appendMessage('assistant', I18N[currentLang].errorMsg, false, true);
         }
     };
 }
 
-// Toggle Voice Recording
 function toggleSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-        appendMessage('assistant', I18N[currentLang].speechNotSupported, true);
+        appendMessage('assistant', I18N[currentLang].speechNotSupported, false, true);
         userInput.focus();
         return;
     }
@@ -659,6 +893,7 @@ function toggleSpeechRecognition() {
         recognition.stop();
     } else {
         userInput.value = '';
+        charCounter.textContent = '0/500';
         recognition.lang = currentLang === 'ta' ? 'ta-IN' : 'en-IN';
         try {
             recognition.start();
@@ -668,24 +903,39 @@ function toggleSpeechRecognition() {
     }
 }
 
-// 20. Event Listeners
+// 18. Event Listeners
 chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     lastInputWasVoice = false;
     handleMessageSubmit();
 });
 
+userInput.addEventListener('input', () => {
+    charCounter.textContent = `${userInput.value.length}/500`;
+});
+
 langBtnTa.addEventListener('click', () => {
-    if (currentLang !== 'ta') {
-        setLanguage('ta');
-        appendMessage('assistant', I18N.ta.welcome);
-    }
+    if (currentLang !== 'ta') setLanguage('ta');
 });
 
 langBtnEn.addEventListener('click', () => {
-    if (currentLang !== 'en') {
-        setLanguage('en');
-        appendMessage('assistant', I18N.en.welcome);
+    if (currentLang !== 'en') setLanguage('en');
+});
+
+clearChatBtn.addEventListener('click', () => {
+    resetChat();
+});
+
+toggleSuggestionsBtn.addEventListener('click', () => {
+    suggestionsVisible = !suggestionsVisible;
+    if (suggestionsVisible) {
+        categoryTabs.style.display = 'flex';
+        questionCardsGrid.style.display = 'grid';
+        toggleSuggestionsText.textContent = I18N[currentLang].hideSuggestions;
+    } else {
+        categoryTabs.style.display = 'none';
+        questionCardsGrid.style.display = 'none';
+        toggleSuggestionsText.textContent = I18N[currentLang].showSuggestions;
     }
 });
 
@@ -693,10 +943,15 @@ micBtn.addEventListener('click', () => {
     toggleSpeechRecognition();
 });
 
-// 21. Initialize on page load
+stopRecordingBtn.addEventListener('click', () => {
+    if (isRecording && recognition) {
+        recognition.stop();
+    }
+});
+
+// 19. Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
     setLanguage('ta');
-    appendMessage('assistant', I18N.ta.welcome);
     setupSpeechRecognition();
     loadVoices();
 });
