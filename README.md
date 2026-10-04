@@ -42,18 +42,26 @@ AI & Speech Engine (Gemini 2.5 Flash + Browser TTS)
 Tamil-Diabetes-Assistant/
 ├── config.py             # Application configuration & environment loader
 ├── app.py                # Main Flask entrypoint & application factory
+├── Procfile              # Cloud process declaration (gunicorn WSGI runner)
+├── render.yaml           # 1-Click Render cloud deployment configuration
+├── .env.example          # Sample environment variable template
 ├── routes/               # Modular API route blueprints
 │   ├── __init__.py
 │   ├── health.py         # Health check endpoint (GET /health)
-│   └── chat.py           # Chat & validation endpoint (POST /chat)
-├── services/             # Business logic (AI and Speech integrations)
-│   └── __init__.py
-├── static/               # Frontend static assets
-│   ├── css/              # Stylesheets
-│   └── js/               # Client-side JavaScript
-├── templates/            # HTML templates
-├── .env                  # Environment secrets (ignored by Git)
-├── .gitignore            # Git ignore rules
+│   ├── chat.py           # Chat & validation endpoint (POST /chat)
+│   └── tts.py            # Text-to-speech audio endpoint (POST /tts)
+├── services/             # Business logic & safety guardrails
+│   ├── __init__.py
+│   ├── ai_service.py     # Google Gemini API connector with safety filters
+│   └── guardrails.py     # Rate limiting & emergency symptom interceptor
+├── tests/                # Automated pytest suite (16 tests)
+│   ├── conftest.py       # Isolated test client fixtures
+│   ├── test_health.py    # Health check tests
+│   ├── test_chat_validation.py # Input validation tests
+│   ├── test_safety_guardrails.py # Safety & emergency tests
+│   └── test_tts.py       # Audio synthesis tests
+├── static/               # Frontend static assets (CSS, JS)
+├── templates/            # HTML5 web interface (index.html)
 ├── requirements.txt      # Python dependencies
 └── README.md             # Project documentation
 ```
@@ -152,6 +160,37 @@ Tamil-Diabetes-Assistant/
 
 ---
 
+## 🌐 Cloud Deployment (Render)
+
+This repository includes a [`Procfile`](file:///c:/Users/LAKSHMI%20DEVI/Documents/Projects/Tamil-Diabetes-Assistant/Procfile) and [`render.yaml`](file:///c:/Users/LAKSHMI%20DEVI/Documents/Projects/Tamil-Diabetes-Assistant/render.yaml) for 1-click or blueprint deployment on [Render](https://render.com) (free tier):
+
+1. **Push your code to GitHub**:
+   ```bash
+   git add .
+   git commit -m "feat: configure cloud deployment with Render blueprint and Gunicorn"
+   git push origin main
+   ```
+
+2. **Deploy on Render**:
+   - Sign up/log in at [Render.com](https://render.com).
+   - Click **New +** > **Web Service**.
+   - Connect your GitHub repository `Tamil-Diabetes-Assistant`.
+   - Set the following settings:
+     - **Environment**: `Python 3`
+     - **Build Command**: `pip install -r requirements.txt`
+     - **Start Command**: `gunicorn app:app`
+     - **Plan**: `Free`
+   - Under **Environment Variables**, add:
+     - `GEMINI_API_KEY`: *(Your Google Gemini API Key from Google AI Studio)*
+     - `GEMINI_MODEL`: `gemini-3.5-flash`
+     - `DEBUG`: `False`
+   - Click **Create Web Service**.
+
+3. **Verify Deployment**:
+   - Once deployed, visit your Render URL (e.g., `https://tamil-diabetes-assistant.onrender.com/health`) to confirm the service is live and healthy.
+
+---
+
 ## 🗺️ Development Roadmap
 
 - [x] **Module 1**: Backend architecture, CORS, modular blueprints, logging, `.gitignore`, README skeleton.
@@ -161,5 +200,5 @@ Tamil-Diabetes-Assistant/
 - [x] **Module 5**: Text-to-Speech synthesis for natural voice replies.
 - [x] **Module 6**: Safety guardrails, length limits, and edge case hardening.
 - [x] **Module 7**: Automated testing with pytest.
-- [ ] **Module 8**: Cloud deployment (Render/HuggingFace).
+- [x] **Module 8**: Cloud deployment (Render/HuggingFace).
 - [ ] **Module 9**: Portfolio polish, demo scripts, and final documentation.

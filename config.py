@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     """Application configuration settings."""
     PORT = int(os.getenv("PORT", 5000))
-    DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
+    DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
     
     # Gemini AI configuration
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
