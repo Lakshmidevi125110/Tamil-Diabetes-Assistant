@@ -3,7 +3,12 @@
  * Features:
  * - Bilingual Chat UI (Tamil & English)
  * - Browser Web Speech-to-Text (ta-IN & en-IN)
- * - Browser Text-to-Speech (speechSynthesis) with Tamil/English voices & Play/Stop controls
+ * - Hybrid Text-to-Speech with Sentence Streaming:
+ *     * Sentence-by-sentence prefetching via POST /tts (edge-tts / gTTS)
+ *     * Immediate playback on first sentence arrival
+ *     * In-memory caching on server for instant replay
+ * - Visual Loading / "Preparing audio..." button state with double-click prevention
+ * - Play / Stop audio toggle controls
  * - Medical Safety disclaimer banner & emergency guidelines
  */
 
@@ -31,7 +36,8 @@ const I18N = {
         micTooltipIdle: "குரல் மூலம் பேச (Speak)",
         playAudio: "குரலில் கேட்க (Listen)",
         stopAudio: "ஒலிப்பதை நிறுத்த (Stop audio)",
-        ttsNotSupported: "⚠️ உங்கள் உலாவியில் ஒலிப் பேச்சு (Text-to-Speech) வசதி ஆதரிக்கப்படவில்லை."
+        preparingAudio: "ஆடியோ தயாராகிறது... (Preparing audio...)",
+        ttsErrorMsg: "மன்னிக்கவும்! குரல் ஒலியை உருவாக்க முடியவில்லை. மீண்டும் முயற்சிக்கவும்."
     },
     en: {
         title: "Tamil Voice Diabetes Assistant",
@@ -55,7 +61,8 @@ const I18N = {
         micTooltipIdle: "Speak your question",
         playAudio: "Listen to reply",
         stopAudio: "Stop audio",
-        ttsNotSupported: "⚠️ Text-to-speech is not supported in this browser."
+        preparingAudio: "Preparing audio...",
+        ttsErrorMsg: "Sorry! Unable to generate voice audio. Please try again."
     }
 };
 
@@ -65,7 +72,13 @@ let isProcessing = false;
 let isRecording = false;
 let recognition = null;
 let cachedVoices = [];
+
+// Speech Playback & Queue State
 let activeSpeechBtn = null;
+let currentAudio = null;
+let currentAudioUrlList = [];
+let activePlaybackSessionId = 0;
+let activeAbortController = null;
 let lastInputWasVoice = false;
 
 // 3. DOM Elements
@@ -82,7 +95,7 @@ const disclaimerText = document.getElementById('disclaimer-text');
 const chipsLabel = document.getElementById('chips-label');
 const chipsList = document.getElementById('chips-list');
 
-// 4. SVG Icons for Audio Play & Stop
+// 4. SVG Icons
 const PLAY_ICON_SVG = `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -94,6 +107,19 @@ const PLAY_ICON_SVG = `
 const STOP_ICON_SVG = `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+    </svg>
+`;
+
+const LOADING_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="2" x2="12" y2="6"></line>
+        <line x1="12" y1="18" x2="12" y2="22"></line>
+        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+        <line x1="2" y1="12" x2="6" y2="12"></line>
+        <line x1="18" y1="12" x2="22" y2="12"></line>
+        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
     </svg>
 `;
 
@@ -110,18 +136,32 @@ function escapeHTML(str) {
     return div.innerHTML;
 }
 
-// 7. Clean text before passing to Text-to-Speech
+// 7. Clean text before passing to Text-to-Speech (strips emojis, ⚠️, markdown)
 function cleanTextForSpeech(text) {
     return text
         .replace(/⚠️/g, '')
-        .replace(/\*\*/g, '')
-        .replace(/\*/g, '')
-        .replace(/\[.*?\]/g, '') // remove bracketed medical terms if spoken awkwardly
+        .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+        .replace(/[🚨ℹ️👉🩺👤🎙️🔊⏹️]/g, '')
+        .replace(/[*_#`~]/g, '')
+        .replace(/\[.*?\]/g, '')
         .replace(/https?:\/\/\S+/g, '')
+        .replace(/^\s*[-•]\s*/gm, '')
+        .replace(/\s+/g, ' ')
         .trim();
 }
 
-// 8. Load and Cache Browser Synthesis Voices
+// 8. Split text into individual sentences for streamed playback
+function splitIntoSentences(text) {
+    const cleaned = cleanTextForSpeech(text);
+    if (!cleaned) return [];
+    // Split on sentence-ending punctuation (. ! ? \n) followed by whitespace
+    const parts = cleaned.split(/(?<=[.!?\n])\s+/);
+    return parts
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && !/^[\s.,!?-]+$/.test(s));
+}
+
+// 9. Load and Cache Browser Synthesis Voices
 function loadVoices() {
     if ('speechSynthesis' in window) {
         cachedVoices = window.speechSynthesis.getVoices();
@@ -133,28 +173,85 @@ if ('speechSynthesis' in window) {
     loadVoices();
 }
 
-// 9. Stop Speech Helper
+// 10. Check if a matching browser voice exists for language
+function findMatchingBrowserVoice(lang) {
+    if (!('speechSynthesis' in window)) return null;
+    if (cachedVoices.length === 0) loadVoices();
+
+    if (lang === 'ta') {
+        return cachedVoices.find(v => 
+            v.lang === 'ta-IN' || 
+            v.lang.toLowerCase().startsWith('ta') || 
+            v.name.toLowerCase().includes('tamil') ||
+            v.name.toLowerCase().includes('valluvar') ||
+            v.name.toLowerCase().includes('pallavi')
+        ) || null;
+    } else {
+        return cachedVoices.find(v => v.lang === 'en-IN' || v.name.toLowerCase().includes('neerja')) ||
+               cachedVoices.find(v => v.lang.startsWith('en')) || null;
+    }
+}
+
+// 11. Stop All Audio Playback & In-Flight Sentence Requests
 function stopSpeech() {
+    // 1. Cancel browser speech
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
     }
+    // 2. Abort any in-flight /tts fetch requests
+    if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+    }
+    // 3. Invalidate current playback session
+    activePlaybackSessionId++;
+
+    // 4. Stop and reset HTML5 Audio element
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio = null;
+    }
+
+    // 5. Revoke all allocated object URLs
+    currentAudioUrlList.forEach(url => {
+        try { URL.revokeObjectURL(url); } catch (e) {}
+    });
+    currentAudioUrlList = [];
+
+    // 6. Reset button UI
     if (activeSpeechBtn) {
         activeSpeechBtn.innerHTML = PLAY_ICON_SVG;
-        activeSpeechBtn.classList.remove('speaking');
+        activeSpeechBtn.classList.remove('speaking', 'loading');
         activeSpeechBtn.title = I18N[currentLang].playAudio;
         activeSpeechBtn = null;
     }
 }
 
-// 10. Text-to-Speech Speak Function
-function speakText(text, lang, btnElement) {
-    if (!('speechSynthesis' in window)) {
-        appendMessage('assistant', I18N[currentLang].ttsNotSupported, true);
-        return;
+// 12. Fetch Single Sentence Audio from Server /tts
+async function fetchSentenceAudio(sentence, lang, signal) {
+    const response = await fetch('/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            text: sentence,
+            language: lang
+        }),
+        signal: signal
+    });
+
+    if (!response.ok) {
+        throw new Error(`TTS server error (${response.status})`);
     }
 
-    // If currently speaking this specific message, click acts as STOP
-    if (window.speechSynthesis.speaking && activeSpeechBtn === btnElement) {
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+}
+
+// 13. Speak Text with Sentence Streaming & Loading States
+async function speakText(text, lang, btnElement) {
+    // If clicked while active or preparing, click acts as STOP
+    if (activeSpeechBtn === btnElement) {
         stopSpeech();
         return;
     }
@@ -165,63 +262,119 @@ function speakText(text, lang, btnElement) {
     const cleanText = cleanTextForSpeech(text);
     if (!cleanText) return;
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-
-    if (cachedVoices.length === 0) {
-        loadVoices();
-    }
-
-    // Voice Selection with Fallbacks
-    if (lang === 'ta') {
-        utterance.lang = 'ta-IN';
-        utterance.rate = 0.95; // slightly slower for clear, comfortable Tamil cadence
-        const tamilVoice = cachedVoices.find(v => 
-            v.lang === 'ta-IN' || 
-            v.lang.toLowerCase().startsWith('ta') || 
-            v.name.toLowerCase().includes('tamil') ||
-            v.name.toLowerCase().includes('valluvar') ||
-            v.name.toLowerCase().includes('pallavi')
-        );
-        if (tamilVoice) {
-            utterance.voice = tamilVoice;
-        } else {
-            console.info("No dedicated Tamil voice detected. Falling back to browser default voice with ta-IN language tag.");
-        }
-    } else {
-        utterance.lang = 'en-IN';
-        utterance.rate = 1.0;
-        const englishVoice = cachedVoices.find(v => v.lang === 'en-IN' || v.name.toLowerCase().includes('neerja')) ||
-                             cachedVoices.find(v => v.lang.startsWith('en'));
-        if (englishVoice) {
-            utterance.voice = englishVoice;
-        }
-    }
-
-    // Visual button feedback
-    btnElement.innerHTML = STOP_ICON_SVG;
-    btnElement.classList.add('speaking');
-    btnElement.title = I18N[currentLang].stopAudio;
+    // 1. Set "Preparing audio..." state & disable double-clicks
+    btnElement.innerHTML = LOADING_ICON_SVG;
+    btnElement.classList.add('loading');
+    btnElement.title = I18N[currentLang].preparingAudio;
     activeSpeechBtn = btnElement;
 
-    utterance.onend = () => {
-        btnElement.innerHTML = PLAY_ICON_SVG;
-        btnElement.classList.remove('speaking');
-        btnElement.title = I18N[currentLang].playAudio;
-        activeSpeechBtn = null;
-    };
+    const currentSession = ++activePlaybackSessionId;
+    activeAbortController = new AbortController();
 
-    utterance.onerror = (e) => {
-        console.warn("Speech synthesis error or interruption:", e);
-        btnElement.innerHTML = PLAY_ICON_SVG;
-        btnElement.classList.remove('speaking');
-        btnElement.title = I18N[currentLang].playAudio;
-        activeSpeechBtn = null;
-    };
+    // Check if browser has a native voice for this language
+    const matchingVoice = findMatchingBrowserVoice(lang);
 
-    window.speechSynthesis.speak(utterance);
+    if (matchingVoice) {
+        // --- PATH A: Browser Native SpeechSynthesis ---
+        btnElement.classList.remove('loading');
+        btnElement.innerHTML = STOP_ICON_SVG;
+        btnElement.classList.add('speaking');
+        btnElement.title = I18N[currentLang].stopAudio;
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.voice = matchingVoice;
+        utterance.lang = lang === 'ta' ? 'ta-IN' : 'en-IN';
+        utterance.rate = lang === 'ta' ? 0.95 : 1.0;
+
+        utterance.onend = () => { stopSpeech(); };
+        utterance.onerror = (e) => {
+            console.warn("Speech synthesis error:", e);
+            stopSpeech();
+        };
+
+        window.speechSynthesis.speak(utterance);
+    } else {
+        // --- PATH B: Server-Side Streamed Sentence Pipeline (edge-tts / gTTS) ---
+        const sentences = splitIntoSentences(text);
+        if (sentences.length === 0) {
+            stopSpeech();
+            return;
+        }
+
+        try {
+            // Step 1: Pre-launch fetches for all sentences
+            // sentencePromises will resolve to audio URLs in order
+            const sentenceAudioPromises = sentences.map(sentence => 
+                fetchSentenceAudio(sentence, lang, activeAbortController.signal)
+            );
+
+            // Step 2: Await ONLY the first sentence to start playback immediately!
+            const firstAudioUrl = await sentenceAudioPromises[0];
+            if (activePlaybackSessionId !== currentSession) return;
+
+            currentAudioUrlList.push(firstAudioUrl);
+
+            // Audio is ready: change button from Loading -> Playing (Stop button)
+            btnElement.classList.remove('loading');
+            btnElement.innerHTML = STOP_ICON_SVG;
+            btnElement.classList.add('speaking');
+            btnElement.title = I18N[currentLang].stopAudio;
+
+            // Sequential audio player function
+            let currentIdx = 0;
+
+            const playNextSentence = async () => {
+                if (activePlaybackSessionId !== currentSession) return;
+
+                if (currentIdx >= sentences.length) {
+                    stopSpeech();
+                    return;
+                }
+
+                try {
+                    // Await the next pre-fetched sentence audio URL
+                    const audioUrl = await sentenceAudioPromises[currentIdx];
+                    if (activePlaybackSessionId !== currentSession) return;
+
+                    if (!currentAudioUrlList.includes(audioUrl)) {
+                        currentAudioUrlList.push(audioUrl);
+                    }
+
+                    currentAudio = new Audio(audioUrl);
+                    currentAudio.onended = () => {
+                        currentIdx++;
+                        playNextSentence();
+                    };
+                    currentAudio.onerror = (e) => {
+                        console.error("Audio sentence playback error:", e);
+                        stopSpeech();
+                        appendMessage('assistant', I18N[currentLang].ttsErrorMsg, true);
+                    };
+
+                    await currentAudio.play();
+                } catch (playErr) {
+                    if (activePlaybackSessionId === currentSession) {
+                        console.error("Error playing sentence audio:", playErr);
+                        stopSpeech();
+                        appendMessage('assistant', I18N[currentLang].ttsErrorMsg, true);
+                    }
+                }
+            };
+
+            // Start playing sentence sequence
+            playNextSentence();
+
+        } catch (fetchErr) {
+            if (activePlaybackSessionId === currentSession) {
+                console.error("Error fetching streamed TTS sentences:", fetchErr);
+                stopSpeech();
+                appendMessage('assistant', I18N[currentLang].ttsErrorMsg, true);
+            }
+        }
+    }
 }
 
-// 11. Append Message Bubble to Chat
+// 14. Append Message Bubble to Chat
 function appendMessage(sender, text, isError = false) {
     const row = document.createElement('div');
     row.className = `message-row ${sender}`;
@@ -273,7 +426,7 @@ function appendMessage(sender, text, isError = false) {
     return speechBtn;
 }
 
-// 12. Animated Typing Indicator
+// 15. Animated Typing Indicator
 function showTypingIndicator() {
     const row = document.createElement('div');
     row.className = 'message-row assistant';
@@ -304,7 +457,7 @@ function removeTypingIndicator() {
     if (typingRow) typingRow.remove();
 }
 
-// 13. Render Suggestion Chips
+// 16. Render Suggestion Chips
 function renderChips() {
     chipsList.innerHTML = '';
     const prompts = I18N[currentLang].prompts;
@@ -324,7 +477,7 @@ function renderChips() {
     });
 }
 
-// 14. Update UI Language
+// 17. Update UI Language
 function setLanguage(lang) {
     currentLang = lang;
     stopSpeech();
@@ -355,7 +508,7 @@ function setLanguage(lang) {
     }
 }
 
-// 15. Send Message Handler
+// 18. Send Message Handler
 async function handleMessageSubmit() {
     const message = userInput.value.trim();
     if (!message || isProcessing) return;
@@ -369,7 +522,7 @@ async function handleMessageSubmit() {
     }
 
     const triggeredByVoice = lastInputWasVoice;
-    lastInputWasVoice = false; // reset flag
+    lastInputWasVoice = false;
 
     // 1. Display User Message
     appendMessage('user', message);
@@ -417,7 +570,7 @@ async function handleMessageSubmit() {
     }
 }
 
-// 16. Speech-to-Text Setup (Web Speech API)
+// 19. Speech-to-Text Setup (Web Speech API)
 function setupSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -438,7 +591,7 @@ function setupSpeechRecognition() {
     recognition.onstart = () => {
         isRecording = true;
         lastInputWasVoice = true;
-        stopSpeech(); // Stop any audio playback while recording user's voice
+        stopSpeech();
         micBtn.classList.add('recording');
         micBtn.title = I18N[currentLang].micTooltipActive;
         userInput.placeholder = I18N[currentLang].listening;
@@ -515,7 +668,7 @@ function toggleSpeechRecognition() {
     }
 }
 
-// 17. Event Listeners
+// 20. Event Listeners
 chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     lastInputWasVoice = false;
@@ -540,7 +693,7 @@ micBtn.addEventListener('click', () => {
     toggleSpeechRecognition();
 });
 
-// 18. Initialize on page load
+// 21. Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     setLanguage('ta');
     appendMessage('assistant', I18N.ta.welcome);

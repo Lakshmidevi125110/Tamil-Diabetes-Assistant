@@ -286,6 +286,18 @@ body {
     animation: speechPulse 1.2s infinite ease-in-out;
 }
 
+.speech-btn.loading {
+    color: #0f766e;
+    cursor: wait;
+    pointer-events: none;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 @keyframes speechPulse {
     0% { transform: scale(1); }
     50% { transform: scale(1.18); }

@@ -2,4 +2,5 @@ flask
 flask-cors
 google-genai
 edge-tts
+gtts
 python-dotenv
