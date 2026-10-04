@@ -8,13 +8,29 @@ logger = logging.getLogger(__name__)
 # Create a Blueprint for chat-related routes
 chat_bp = Blueprint("chat", __name__)
 
-@chat_bp.route("/chat", methods=["POST"])
+@chat_bp.route("/chat", methods=["GET", "POST"])
 def chat():
     """
-    Chat endpoint to receive questions and return AI-generated educational responses.
-    Expects JSON: { "message": "...", "language": "ta" | "en" }
+    Chat endpoint:
+    - GET: Returns usage instructions and guides users to the web UI.
+    - POST: Receives questions and returns AI-generated educational responses.
     """
-    # 1. Parse JSON payload
+    # If opened directly in a browser via GET
+    if request.method == "GET":
+        return jsonify({
+            "message": "The /chat endpoint expects a POST request with a JSON payload.",
+            "usage": {
+                "method": "POST",
+                "headers": {"Content-Type": "application/json"},
+                "body": {
+                    "message": "உங்கள் கேள்வி / Your question here",
+                    "language": "ta or en"
+                }
+            },
+            "web_ui": "To use the interactive voice web interface, open http://localhost:5000 in your browser."
+        }), 200
+
+    # 1. Parse JSON payload for POST
     data = request.get_json(silent=True)
     if not data:
         logger.warning("Rejected request: payload is not valid JSON.")
