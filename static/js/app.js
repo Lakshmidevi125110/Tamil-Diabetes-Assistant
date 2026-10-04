@@ -199,6 +199,7 @@ let isRecording = false;
 let recognition = null;
 let cachedVoices = [];
 let suggestionsVisible = true;
+let conversationHistory = [];
 
 // Speech Playback & Streaming State
 let activeSpeechBtn = null;
@@ -746,6 +747,7 @@ function setLanguage(lang) {
 // 15. Reset Chat
 function resetChat() {
     stopSpeech();
+    conversationHistory = [];
     chatMessages.innerHTML = '';
     renderWelcomeCard();
 }
@@ -780,7 +782,8 @@ async function handleMessageSubmit() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: message,
-                language: currentLang
+                language: currentLang,
+                history: conversationHistory.slice(-6)
             })
         });
 
@@ -790,6 +793,13 @@ async function handleMessageSubmit() {
         if (response.ok && (data.status === 'success' || data.status === 'emergency')) {
             const isEmergency = data.status === 'emergency';
             const speechBtn = appendMessage('assistant', data.reply, isEmergency, false);
+
+            // Maintain conversation context for subsequent follow-up queries
+            conversationHistory.push({ role: 'user', text: message });
+            conversationHistory.push({ role: 'assistant', text: data.reply });
+            if (conversationHistory.length > 10) {
+                conversationHistory = conversationHistory.slice(-10);
+            }
 
             if (triggeredByVoice && speechBtn) {
                 speakText(data.reply, currentLang, speechBtn);

@@ -85,8 +85,19 @@ def chat():
             "reply": emergency_response
         }), 200
 
-    # 6. AI Generation with Safety Guardrails
-    ai_reply = generate_ai_response(user_message=user_message, language=language)
+    # 6. Extract conversation history for multi-turn context (optional)
+    raw_history = data.get("history", [])
+    valid_history = []
+    if isinstance(raw_history, list):
+        for item in raw_history[-6:]:
+            if isinstance(item, dict) and "role" in item and "text" in item:
+                role = str(item["role"]).strip().lower()
+                text = str(item["text"]).strip()
+                if role in ("user", "assistant") and text:
+                    valid_history.append({"role": role, "text": text[:500]})
+
+    # 7. AI Generation with Safety Guardrails & Context
+    ai_reply = generate_ai_response(user_message=user_message, language=language, history=valid_history)
 
     # 7. Return formatted response
     return jsonify({

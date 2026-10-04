@@ -49,17 +49,18 @@ def validate_input_length(message: str, language: str = "ta") -> Tuple[bool, Opt
 
 # Emergency keyword dictionary
 EMERGENCY_KEYWORDS_EN = [
-    r"\bunconscious\b", r"\bfainted\b", r"\bfainting\b", r"\bpassed out\b",
+    r"\bunconscious\b", r"\bunconsciousness\b", r"\bfainted\b", r"\bfainting\b", r"\bpassed out\b",
     r"\bchest pain\b", r"\bheart attack\b", r"\bsevere shortness of breath\b",
-    r"\bcannot breathe\b", r"\bseizure\b", r"\bconvulsion\b",
+    r"\bcannot breathe\b", r"\bseizure\b", r"\bconvulsion\b", r"\bcannot swallow\b",
+    r"\binability to swallow\b", r"\bchoking\b",
     r"\bsugar (?:is |below |under )?[234]\d\b", # sugar below 50
     r"\bblood sugar (?:below |under |is )?[234]\d\b"
 ]
 
 EMERGENCY_KEYWORDS_TA = [
-    "மயக்கம்", "மயங்கி", "நினைவிழந்த", "சுயநினைவு", "நெஞ்சு வலி",
-    "மூச்சுத்திணறல்", "மூச்சு திணறல்", "வலிப்பு", "கை கால் நடுக்கம்",
-    "சர்க்கரை 30", "சர்க்கரை 40", "சர்க்கரை 45", "சர்க்கரை 50"
+    "மயக்கம்", "மயங்கி", "நினைவிழந்த", "சுயநினைவு", "சுயநினைவிழந்த", "எழுப்ப முடியவில்லை",
+    "நெஞ்சு வலி", "மூச்சுத்திணறல்", "மூச்சு திணறல்", "வலிப்பு", "கை கால் நடுக்கம்",
+    "விழுங்க முடியவில்லை", "சர்க்கரை 30", "சர்க்கரை 40", "சர்க்கரை 45", "சர்க்கரை 50"
 ]
 
 def check_emergency_symptoms(message: str, language: str = "ta") -> Optional[str]:
