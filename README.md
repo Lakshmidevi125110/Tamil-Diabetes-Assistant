@@ -105,6 +105,11 @@ Tamil-Diabetes-Assistant/
    ```
    Visit `http://localhost:5000/health` in your browser to verify.
 
+6. **Run automated test suite:**
+   ```bash
+   pytest tests/ -v
+   ```
+
 ---
 
 ## 📡 API Endpoints
@@ -155,6 +160,6 @@ Tamil-Diabetes-Assistant/
 - [x] **Module 4**: Browser Web Speech-to-Text integration with fallbacks.
 - [x] **Module 5**: Text-to-Speech synthesis for natural voice replies.
 - [x] **Module 6**: Safety guardrails, length limits, and edge case hardening.
-- [ ] **Module 7**: Automated testing with pytest.
+- [x] **Module 7**: Automated testing with pytest.
 - [ ] **Module 8**: Cloud deployment (Render/HuggingFace).
 - [ ] **Module 9**: Portfolio polish, demo scripts, and final documentation.
