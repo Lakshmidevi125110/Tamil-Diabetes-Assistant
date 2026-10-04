@@ -1,5 +1,6 @@
 import logging
 from flask import Blueprint, request, jsonify
+from services.ai_service import generate_ai_response
 
 # Configure logger for this route
 logger = logging.getLogger(__name__)
@@ -9,7 +10,10 @@ chat_bp = Blueprint("chat", __name__)
 
 @chat_bp.route("/chat", methods=["POST"])
 def chat():
-    """Chat endpoint to receive questions and return responses."""
+    """
+    Chat endpoint to receive questions and return AI-generated educational responses.
+    Expects JSON: { "message": "...", "language": "ta" | "en" }
+    """
     # 1. Parse JSON payload
     data = request.get_json(silent=True)
     if not data:
@@ -26,23 +30,20 @@ def chat():
             "error": "The message field cannot be empty."
         }), 400
 
-    # Optional language preference (default: auto or ta)
+    # Extract language preference (default: "ta")
     language = data.get("language", "ta").strip()
+    if language not in ("ta", "en"):
+        language = "ta"
 
-    logger.info("Received chat query [lang=%s]: %s", language, user_message[:50])
+    logger.info("Processing chat query [lang=%s]: %s", language, user_message[:50])
 
-    # 3. Temporary mock reply (replaced by Gemini in Module 2)
-    mock_reply = (
-        f"வணக்கம்! உங்கள் கேள்வி கிடைத்தது: \"{user_message}\". "
-        "இது ஒரு மாதிரி பதில் (Mock response). "
-        "சர்க்கரை நோய் குறித்த பொதுவான விழிப்புணர்வு தகவல்களை விரைவில் வழங்க உள்ளேன்.\n\n"
-        "⚠️ Disclaimer: இந்த தகவல் பொது விழிப்புணர்விற்காக மட்டுமே. "
-        "மருத்துவ ஆலோசனை அல்லது சிகிச்சைக்கு எப்போதும் உங்கள் மருத்துவரை அணுகவும்."
-    )
+    # 3. Call AI Service with medical safety guardrails
+    ai_reply = generate_ai_response(user_message=user_message, language=language)
 
+    # 4. Return formatted response
     return jsonify({
         "status": "success",
         "received_message": user_message,
         "language": language,
-        "reply": mock_reply
+        "reply": ai_reply
     }), 200

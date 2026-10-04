@@ -150,7 +150,7 @@ Tamil-Diabetes-Assistant/
 ## 🗺️ Development Roadmap
 
 - [x] **Module 1**: Backend architecture, CORS, modular blueprints, logging, `.gitignore`, README skeleton.
-- [ ] **Module 2**: Gemini API integration with safety prompts & error handling.
+- [x] **Module 2**: Gemini API integration with safety prompts & error handling.
 - [ ] **Module 3**: Responsive chat frontend (Tamil/English toggle, disclaimer banner).
 - [ ] **Module 4**: Browser Web Speech-to-Text integration with fallbacks.
 - [ ] **Module 5**: Text-to-Speech synthesis for natural voice replies.
