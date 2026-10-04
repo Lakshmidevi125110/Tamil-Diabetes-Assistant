@@ -154,7 +154,7 @@ Tamil-Diabetes-Assistant/
 - [x] **Module 3**: Responsive chat frontend (Tamil/English toggle, disclaimer banner).
 - [x] **Module 4**: Browser Web Speech-to-Text integration with fallbacks.
 - [x] **Module 5**: Text-to-Speech synthesis for natural voice replies.
-- [ ] **Module 6**: Safety guardrails, length limits, and edge case hardening.
+- [x] **Module 6**: Safety guardrails, length limits, and edge case hardening.
 - [ ] **Module 7**: Automated testing with pytest.
 - [ ] **Module 8**: Cloud deployment (Render/HuggingFace).
 - [ ] **Module 9**: Portfolio polish, demo scripts, and final documentation.
