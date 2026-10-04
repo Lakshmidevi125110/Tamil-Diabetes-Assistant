@@ -151,7 +151,7 @@ Tamil-Diabetes-Assistant/
 
 - [x] **Module 1**: Backend architecture, CORS, modular blueprints, logging, `.gitignore`, README skeleton.
 - [x] **Module 2**: Gemini API integration with safety prompts & error handling.
-- [ ] **Module 3**: Responsive chat frontend (Tamil/English toggle, disclaimer banner).
+- [x] **Module 3**: Responsive chat frontend (Tamil/English toggle, disclaimer banner).
 - [ ] **Module 4**: Browser Web Speech-to-Text integration with fallbacks.
 - [ ] **Module 5**: Text-to-Speech synthesis for natural voice replies.
 - [ ] **Module 6**: Safety guardrails, length limits, and edge case hardening.
