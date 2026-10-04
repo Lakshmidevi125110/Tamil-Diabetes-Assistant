@@ -153,7 +153,7 @@ Tamil-Diabetes-Assistant/
 - [x] **Module 2**: Gemini API integration with safety prompts & error handling.
 - [x] **Module 3**: Responsive chat frontend (Tamil/English toggle, disclaimer banner).
 - [x] **Module 4**: Browser Web Speech-to-Text integration with fallbacks.
-- [ ] **Module 5**: Text-to-Speech synthesis for natural voice replies.
+- [x] **Module 5**: Text-to-Speech synthesis for natural voice replies.
 - [ ] **Module 6**: Safety guardrails, length limits, and edge case hardening.
 - [ ] **Module 7**: Automated testing with pytest.
 - [ ] **Module 8**: Cloud deployment (Render/HuggingFace).

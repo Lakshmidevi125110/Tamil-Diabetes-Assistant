@@ -251,6 +251,47 @@ body {
     color: var(--text-muted);
 }
 
+.meta-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.speech-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 3px 5px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.speech-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.speech-btn:hover {
+    color: var(--primary);
+    background-color: var(--primary-light);
+}
+
+.speech-btn.speaking {
+    color: #0f766e;
+    background-color: #ccfbf1;
+    animation: speechPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes speechPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+}
+
 .message-row.user .bubble-meta {
     color: rgba(255, 255, 255, 0.75);
 }
