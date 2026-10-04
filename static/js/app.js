@@ -1224,7 +1224,15 @@ class HealthTracker {
         const recent3 = readings.slice(0, 3).map(r => r.value);
         const recentAvg = Math.round(recent3.reduce((a, b) => a + b, 0) / 3);
 
-        if (recentAvg > avg + 20) {
+        if (avg > 180) {
+            return currentLang === 'ta'
+                ? `உங்கள் பதிவுகளின் ஒட்டுமொத்த சராசரி (${avg} mg/dL) பொது வழிகாட்டல் வரம்பை (180 mg/dL) விட அதிகமாக உள்ளது. தனிப்பயனாக்கப்பட்ட உணவு அல்லது சிகிச்சை மாற்றங்களுக்கு உங்கள் மருத்துவரை அணுகவும்.`
+                : `Your overall average (${avg} mg/dL) is above the general reference threshold (180 mg/dL). Discuss persistent elevations and personalized targets with your physician.`;
+        } else if (avg < 70) {
+            return currentLang === 'ta'
+                ? `உங்கள் பதிவுகளின் ஒட்டுமொத்த சராசரி (${avg} mg/dL) குறைவாக உள்ளது. தலைசுற்றல் அல்லது நடுக்கம் போன்ற குறைந்த சர்க்கரை அறிகுறிகள் இருந்தால் உடனடி கவனம் தேவை; உங்கள் மருத்துவரிடம் தெரிவிக்கவும்.`
+                : `Your overall average (${avg} mg/dL) is below the typical reference range. Note low blood sugar symptoms (dizziness, trembling) and consult your doctor promptly.`;
+        } else if (recentAvg > avg + 20) {
             return currentLang === 'ta'
                 ? `உங்கள் சமீபத்திய 3 பதிவுகளின் சராசரி (${recentAvg} mg/dL) முந்தைய சராசரியை (${avg} mg/dL) விட அதிகமாக உள்ளது. உணவு நேரங்கள் அல்லது மன அழுத்த மாற்றங்களை கவனித்து, உங்கள் மருத்துவரிடம் விவாதிக்கவும்.`
                 : `Your recent 3 readings average (${recentAvg} mg/dL) is higher than your overall average (${avg} mg/dL). Note any dietary or lifestyle changes and discuss persistent elevations with your doctor.`;
