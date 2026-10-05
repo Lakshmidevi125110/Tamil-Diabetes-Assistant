@@ -7,6 +7,10 @@ from services.guardrails import (
     check_emergency_symptoms,
     get_client_ip
 )
+from services.safety_validator import (
+    check_medication_change_query,
+    validate_ai_reply
+)
 
 # Configure logger for this route
 logger = logging.getLogger(__name__)
@@ -86,6 +90,17 @@ def chat():
             "reply": emergency_response
         }), 200
 
+    # 5b. Safety Validator: Medication / Dosage Adjustment Interceptor
+    med_response = check_medication_change_query(user_message, language=language)
+    if med_response:
+        logger.info("Medication adjustment query intercepted with educational refusal.")
+        return jsonify({
+            "status": "medication_notice",
+            "received_message": user_message,
+            "language": language,
+            "reply": med_response
+        }), 200
+
     # 6. Extract conversation history for multi-turn context (optional)
     raw_history = data.get("history", [])
     valid_history = []
@@ -100,10 +115,15 @@ def chat():
     # 7. AI Generation with Safety Guardrails & Context
     ai_reply = generate_ai_response(user_message=user_message, language=language, history=valid_history)
 
-    # 7. Return formatted response
+    # 7b. Safety Validator: Audit reply for diagnosis, prescription, plan, or false reassurance
+    _, validated_reply, violation = validate_ai_reply(ai_reply, language=language)
+    if violation:
+        logger.warning("AI reply sanitized by safety validator. Reason: %s", violation)
+
+    # 8. Return formatted response
     return jsonify({
         "status": "success",
         "received_message": user_message,
         "language": language,
-        "reply": ai_reply
+        "reply": validated_reply
     }), 200

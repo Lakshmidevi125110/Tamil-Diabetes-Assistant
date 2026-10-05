@@ -3,6 +3,7 @@ import os
 import logging
 from typing import Dict, Any, Optional, Tuple
 from services.guardrails import check_emergency_symptoms
+from services.safety_validator import validate_ai_reply
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,10 @@ def generate_educational_response(
         disclaimer = "⚠️ குறிப்பு: இது பொதுவான கல்வி விழிப்புணர்வு தகவல் மட்டுமே. தனிப்பட்ட மருத்துவ இலக்குகள் மற்றும் சிகிச்சைக்கு உங்கள் மருத்துவரை அணுகவும்."
         full_response = f"{ack}\n\n{interp}\n\n{context}\n\n{next_step}\n\n{disclaimer}"
 
+    _, safe_response, violation = validate_ai_reply(full_response, language=lang)
+    if violation:
+        logger.warning("Safety validator altered glucose response. Reason: %s", violation)
+
     return {
         "status": "success",
         "classification": classification,
@@ -203,5 +208,5 @@ def generate_educational_response(
         "measurement_type": norm_type,
         "language": lang,
         "reference_range": {"min": min_ref, "max": max_ref, "unit": "mg/dL"},
-        "response": full_response
+        "response": safe_response
     }
