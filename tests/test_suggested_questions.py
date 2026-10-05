@@ -69,3 +69,24 @@ def test_no_diagnostic_or_medication_dosage_questions():
         en_text = item.get("en", "").lower()
         for kw in forbidden_keywords:
             assert kw not in en_text, f"Question {item.get('id')} contains forbidden phrase '{kw}'"
+
+
+def test_get_suggested_questions_endpoint(client):
+    """Verify GET /questions/suggested returns questions array with count."""
+    response = client.get("/questions/suggested")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert data["count"] >= 60
+    assert isinstance(data["questions"], list)
+
+
+def test_get_suggested_questions_filtering(client):
+    """Verify GET /questions/suggested filtering by topic and exclude."""
+    response = client.get("/questions/suggested?topic=basics&exclude=basics_01")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["status"] == "success"
+    assert all(q["topic"] == "basics" for q in data["questions"])
+    assert all(q["id"] != "basics_01" for q in data["questions"])
+

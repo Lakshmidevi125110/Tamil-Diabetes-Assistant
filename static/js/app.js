@@ -345,6 +345,13 @@ let cachedVoices = [];
 let suggestionsVisible = true;
 let conversationHistory = [];
 
+// Module B2: Dynamic Suggested Questions Session State
+let questionsPool = [];
+let displayedQuestions = [null, null, null];
+let usedQuestionIds = new Set();
+let recentlyShownIds = new Set();
+let lastTopic = null;
+
 // Speech Playback State
 let activeSpeechBtn = null;
 let currentAudio = null;
@@ -908,48 +915,623 @@ function removeTypingIndicator() {
     if (typingRow) typingRow.remove();
 }
 
-function renderCategoriesAndQuestions() {
-    const categories = I18N[currentLang].categories;
-    categoryTabs.innerHTML = '';
+// ============================================================================
+// Module B2: Dynamic Suggested Questions Engine & Fallback Pool
+// ============================================================================
+const DEFAULT_QUESTIONS_POOL = [
+  {
+    "id": "basics_01",
+    "topic": "basics",
+    "en": "What is diabetes and how does it develop in the human body?",
+    "ta": "சர்க்கரை நோய் என்றால் என்ன, அது மனித உடலில் எவ்வாறு உருவாகிறது?"
+  },
+  {
+    "id": "basics_02",
+    "topic": "basics",
+    "en": "What role does the pancreas and insulin play in regulating blood glucose?",
+    "ta": "இரத்த சர்க்கரையை கட்டுப்படுத்துவதில் கணையம் மற்றும் இன்சுலின் பங்கு என்ன?"
+  },
+  {
+    "id": "basics_03",
+    "topic": "basics",
+    "en": "What is prediabetes and can lifestyle changes help prevent its progression?",
+    "ta": "ப்ரீடியாபயாட்டீஸ் (Prediabetes) என்றால் என்ன, வாழ்க்கை முறை மாற்றங்கள் அதை தடுக்க உதவுமா?"
+  },
+  {
+    "id": "type1_01",
+    "topic": "type 1",
+    "en": "What causes Type 1 diabetes and how does it differ from Type 2?",
+    "ta": "டைப் 1 நீரிழிவு நோய் எவ்வாறு ஏற்படுகிறது, அது டைப் 2-லிருந்து எவ்வாறு வேறுபடுகிறது?"
+  },
+  {
+    "id": "type1_02",
+    "topic": "type 1",
+    "en": "Why is Type 1 diabetes considered an autoimmune condition?",
+    "ta": "டைப் 1 நீரிழிவு நோய் ஏன் ஒரு சுயதடுப்பாற்றல் (Autoimmune) நிலையாகக் கருதப்படுகிறது?"
+  },
+  {
+    "id": "type2_01",
+    "topic": "type 2",
+    "en": "What is insulin resistance and how does it contribute to Type 2 diabetes?",
+    "ta": "இன்சுலின் எதிர்ப்பு (Insulin Resistance) என்றால் என்ன, அது டைப் 2 நீரிழிவை எவ்வாறு உருவாக்குகிறது?"
+  },
+  {
+    "id": "type2_02",
+    "topic": "type 2",
+    "en": "What are the common lifestyle and hereditary risk factors for Type 2 diabetes?",
+    "ta": "டைப் 2 நீரிழிவு ஏற்படுவதற்கான பொதுவான வாழ்க்கை முறை மற்றும் பரம்பரை காரணிகள் யாவை?"
+  },
+  {
+    "id": "type2_03",
+    "topic": "type 2",
+    "en": "Can regular exercise and a balanced diet help manage Type 2 diabetes?",
+    "ta": "முறையான உடற்பயிற்சி மற்றும் சரிவிகித உணவு டைப் 2 நீரிழிவை நிர்வகிக்க உதவுமா?"
+  },
+  {
+    "id": "gestational_01",
+    "topic": "gestational",
+    "en": "What is gestational diabetes and when is it typically screened during pregnancy?",
+    "ta": "கர்ப்பகால நீரிழிவு (Gestational Diabetes) என்றால் என்ன, கர்ப்ப காலத்தில் இது எப்போது பரிசோதிக்கப்படுகிறது?"
+  },
+  {
+    "id": "gestational_02",
+    "topic": "gestational",
+    "en": "Why is blood sugar monitoring important for both mother and baby during pregnancy?",
+    "ta": "கர்ப்ப காலத்தில் தாய் மற்றும் குழந்தையின் ஆரோக்கியத்திற்கு சர்க்கரை கண்காணிப்பு ஏன் முக்கியம்?"
+  },
+  {
+    "id": "gestational_03",
+    "topic": "gestational",
+    "en": "Does gestational diabetes usually resolve after delivery, and is follow-up testing needed?",
+    "ta": "பிரசவத்திற்குப் பிறகு கர்ப்பகால நீரிழிவு பொதுவாக சரியாகிவிடுமா, தொடர் பரிசோதனை தேவையா?"
+  },
+  {
+    "id": "glucose_01",
+    "topic": "glucose",
+    "en": "What is blood glucose and why does the body require it for energy?",
+    "ta": "இரத்த குளுக்கோஸ் என்றால் என்ன, உடலின் ஆற்றலுக்கு அது ஏன் தேவைப்படுகிறது?"
+  },
+  {
+    "id": "glucose_02",
+    "topic": "glucose",
+    "en": "Why do blood sugar levels fluctuate naturally throughout the day?",
+    "ta": "நாள் முழுவதும் இரத்த சர்க்கரை அளவு இயற்கையாக ஏன் ஏற்ற இறக்கங்களை சந்திக்கிறது?"
+  },
+  {
+    "id": "fasting_01",
+    "topic": "fasting",
+    "en": "What is a fasting blood glucose test and how many hours of fasting are needed?",
+    "ta": "வெறும் வயிற்று சர்க்கரை பரிசோதனை (Fasting Test) என்றால் என்ன, எத்தனை மணி நேரம் உண்ணாமல் இருக்க வேண்டும்?"
+  },
+  {
+    "id": "fasting_02",
+    "topic": "fasting",
+    "en": "What is the typical educational reference range for fasting blood glucose?",
+    "ta": "வெறும் வயிற்று சர்க்கரை அளவிற்கான பொதுவான கல்வி வழிகாட்டல் வரம்பு என்ன?"
+  },
+  {
+    "id": "post_meal_01",
+    "topic": "post-meal",
+    "en": "When should post-meal blood sugar be tested, and why is the 2-hour mark standard?",
+    "ta": "உணவுக்குப் பின் சர்க்கரை பரிசோதனையை எப்போது செய்ய வேண்டும், 2 மணி நேர இடைவெளி ஏன் முக்கியம்?"
+  },
+  {
+    "id": "post_meal_02",
+    "topic": "post-meal",
+    "en": "Why does the timing of the 2-hour post-meal test start from the first bite of the meal?",
+    "ta": "உணவுக்குப் பின் 2 மணி நேர கணக்கு முதல் கவளம் சாப்பிட்டதில் இருந்தே ஏன் தொடங்கப்பட வேண்டும்?"
+  },
+  {
+    "id": "hba1c_01",
+    "topic": "HbA1c",
+    "en": "What does the HbA1c test measure and how does it reflect a 3-month average?",
+    "ta": "HbA1c பரிசோதனை எதை அளவிடுகிறது, அது 3 மாத சராசரி சர்க்கரை அளவை எவ்வாறு காட்டுகிறது?"
+  },
+  {
+    "id": "hba1c_02",
+    "topic": "HbA1c",
+    "en": "How often do healthcare providers generally recommend checking HbA1c levels?",
+    "ta": "HbA1c பரிசோதனையை எத்தனை மாதங்களுக்கு ஒருமுறை செய்ய மருத்துவர்கள் பொதுவாக பரிந்துரைக்கிறார்கள்?"
+  },
+  {
+    "id": "hba1c_03",
+    "topic": "HbA1c",
+    "en": "What is the difference between a daily fingerstick glucose reading and an HbA1c result?",
+    "ta": "தினசரி குளுக்கோமீட்டர் பரிசோதனைக்கும் HbA1c பரிசோதனைக்கும் உள்ள வித்தியாசம் என்ன?"
+  },
+  {
+    "id": "hypo_01",
+    "topic": "hypoglycemia awareness",
+    "en": "What are common early warning signs of low blood sugar (Hypoglycemia)?",
+    "ta": "குறைந்த இரத்த சர்க்கரை அளவின் (Hypoglycemia) ஆரம்ப எச்சரிக்கை அறிகுறிகள் யாவை?"
+  },
+  {
+    "id": "hypo_02",
+    "topic": "hypoglycemia awareness",
+    "en": "What is the educational 'Rule of 15' used for managing mild low blood sugar?",
+    "ta": "லேசான சர்க்கரை குறைவை சரிசெய்ய உதவும் பொதுவான '15-விதி' (Rule of 15) என்றால் என்ன?"
+  },
+  {
+    "id": "hypo_03",
+    "topic": "hypoglycemia awareness",
+    "en": "Why can delayed meals or unexpected physical exertion cause blood sugar drops?",
+    "ta": "உணவை தாமதப்படுத்துவது அல்லது எதிர்பாராத உடற்பயிற்சி சர்க்கரை அளவை ஏன் குறைக்கக்கூடும்?"
+  },
+  {
+    "id": "hyper_01",
+    "topic": "hyperglycemia awareness",
+    "en": "What are common signs of elevated blood sugar (Hyperglycemia) such as thirst and fatigue?",
+    "ta": "அதிக தாகம், அடிக்கடி சிறுநீர் கழித்தல் போன்ற அதிக சர்க்கரை அளவின் (Hyperglycemia) அறிகுறிகள் யாவை?"
+  },
+  {
+    "id": "hyper_02",
+    "topic": "hyperglycemia awareness",
+    "en": "What everyday factors can contribute to temporary blood sugar spikes?",
+    "ta": "இரத்த சர்க்கரை அளவு தற்காலிகமாக உயர்வதற்கு அன்றாட காரணிகள் எவை காரணமாக அமையலாம்?"
+  },
+  {
+    "id": "healthy_eating_01",
+    "topic": "healthy eating",
+    "en": "What is the healthy plate method for balancing vegetables, protein, and grains?",
+    "ta": "காய்கறிகள், புரதம் மற்றும் தானியங்களை சமச்சீராக அமைக்கும் ஆரோக்கிய தட்டு முறை (Plate Method) என்றால் என்ன?"
+  },
+  {
+    "id": "healthy_eating_02",
+    "topic": "healthy eating",
+    "en": "How does portion control support stable blood glucose throughout the day?",
+    "ta": "உணவு அளவைக் கட்டுப்படுத்துவது (Portion Control) நாள் முழுவதும் சர்க்கரை அளவை சீராக வைக்க எவ்வாறு உதவுகிறது?"
+  },
+  {
+    "id": "healthy_eating_03",
+    "topic": "healthy eating",
+    "en": "Are whole fruits preferred over strained fruit juices for blood sugar balance?",
+    "ta": "இரத்த சர்க்கரை சமநிலைக்கு பழச்சாறுகளை விட முழு பழங்களை உண்பது ஏன் சிறந்தது?"
+  },
+  {
+    "id": "carbs_01",
+    "topic": "carbohydrates",
+    "en": "What is the glycemic index and how does it categorize foods based on sugar release?",
+    "ta": "கிளைசெமிக் குறியீடு (Glycemic Index) என்றால் என்ன, அது உணவுகளை எவ்வாறு வகைப்படுத்துகிறது?"
+  },
+  {
+    "id": "carbs_02",
+    "topic": "carbohydrates",
+    "en": "What is the difference between simple carbohydrates and complex carbohydrates?",
+    "ta": "எளிய கார்போஹைட்ரேட்டுகளுக்கும் சிக்கலான கார்போஹைட்ரேட்டுகளுக்கும் என்ன வித்தியாசம்?"
+  },
+  {
+    "id": "carbs_03",
+    "topic": "carbohydrates",
+    "en": "How do traditional millets compare to polished white rice for carbohydrate digestion?",
+    "ta": "செரிமானம் மற்றும் சர்க்கரை உறிஞ்சுதலில் வெள்ளை அரிசியை விட பாரம்பரிய சிறுதானியங்கள் எவ்வாறு உதவுகின்றன?"
+  },
+  {
+    "id": "fiber_01",
+    "topic": "fiber",
+    "en": "How does dietary fiber help slow the absorption of glucose into the bloodstream?",
+    "ta": "உணவில் உள்ள நார்ச்சத்து இரத்தத்தில் குளுக்கோஸ் உறிஞ்சப்படுவதை மெதுவாக்க எவ்வாறு உதவுகிறது?"
+  },
+  {
+    "id": "fiber_02",
+    "topic": "fiber",
+    "en": "What are some fiber-rich local vegetables and legumes suitable for healthy meals?",
+    "ta": "சீரான உணவுக்கு ஏற்ற நார்ச்சத்து மிகுந்த உள்ளூர் காய்கறிகள் மற்றும் பருப்பு வகைகள் யாவை?"
+  },
+  {
+    "id": "hydration_01",
+    "topic": "hydration",
+    "en": "Why is staying well-hydrated important for maintaining healthy blood glucose levels?",
+    "ta": "இரத்த சர்க்கரை அளவை சீராக பராமரிக்க போதுமான தண்ணீர் குடிப்பது ஏன் முக்கியம்?"
+  },
+  {
+    "id": "hydration_02",
+    "topic": "hydration",
+    "en": "How do sugary beverages and sweetened sodas impact blood sugar compared to plain water?",
+    "ta": "சாதாரண தண்ணீருடன் ஒப்பிடுகையில் சர்க்கரை கலந்த குளிர்பானங்கள் இரத்த சர்க்கரையை எவ்வாறு பாதிக்கின்றன?"
+  },
+  {
+    "id": "activity_01",
+    "topic": "activity",
+    "en": "How does a 15-minute gentle walk after meals help muscles absorb glucose?",
+    "ta": "உணவுக்குப் பின் 15 நிமிட நடைபயிற்சி தசைகள் சர்க்கரையை உறிஞ்ச எவ்வாறு உதவுகிறது?"
+  },
+  {
+    "id": "activity_02",
+    "topic": "activity",
+    "en": "What are the general physical activity recommendations for adults managing diabetes?",
+    "ta": "சர்க்கரை நோயை நிர்வகிக்கும் பெரியவர்களுக்கு பொதுவாக பரிந்துரைக்கப்படும் உடற்பயிற்சி நேரம் என்ன?"
+  },
+  {
+    "id": "activity_03",
+    "topic": "activity",
+    "en": "Why is it advisable to stay hydrated and carry a glucose snack during workouts?",
+    "ta": "உடற்பயிற்சி செய்யும்போது போதுமான நீர் அருந்துவதும் குளுக்கோஸ் சிற்றுண்டி வைத்திருப்பதும் ஏன் நல்லது?"
+  },
+  {
+    "id": "sleep_01",
+    "topic": "sleep",
+    "en": "How does getting 7 to 8 hours of restful sleep influence insulin sensitivity?",
+    "ta": "7 முதல் 8 மணி நேர ஆழ்ந்த தூக்கம் இன்சுலின் உணர்திறனை எவ்வாறு மேம்படுத்துகிறது?"
+  },
+  {
+    "id": "sleep_02",
+    "topic": "sleep",
+    "en": "Can chronic sleep deprivation and irregular sleep cycles elevate morning glucose readings?",
+    "ta": "தொடர் தூக்கமின்மை மற்றும் ஒழுங்கற்ற தூக்க நேரம் காலை சர்க்கரை அளவை உயர்த்தக்கூடுமா?"
+  },
+  {
+    "id": "stress_01",
+    "topic": "stress",
+    "en": "How do stress hormones like cortisol and adrenaline affect blood glucose levels?",
+    "ta": "கார்டிசோல் போன்ற மன அழுத்த ஹார்மோன்கள் இரத்த சர்க்கரை அளவை எவ்வாறு அதிகரிக்கின்றன?"
+  },
+  {
+    "id": "stress_02",
+    "topic": "stress",
+    "en": "What simple relaxation habits, such as deep breathing, can help support stress management?",
+    "ta": "ஆழ்ந்த மூச்சுப்பயிற்சி போன்ற எளிய பழக்கங்கள் மன அழுத்தத்தை நிர்வகிக்க எவ்வாறு உதவுகின்றன?"
+  },
+  {
+    "id": "foot_care_01",
+    "topic": "foot care",
+    "en": "Why is daily foot inspection essential for individuals living with diabetes?",
+    "ta": "சர்க்கரை நோய் உள்ளவர்கள் தினமும் பாதங்களை பரிசோதிப்பது ஏன் மிகவும் அவசியம்?"
+  },
+  {
+    "id": "foot_care_02",
+    "topic": "foot care",
+    "en": "What footwear precautions help prevent blisters, cuts, and pressure sores on feet?",
+    "ta": "பாதங்களில் கொப்புளங்கள் மற்றும் வெட்டுக்காயங்கள் ஏற்படுவதைத் தடுக்க என்ன காலணி முன்னெச்சரிக்கைகள் தேவை?"
+  },
+  {
+    "id": "foot_care_03",
+    "topic": "foot care",
+    "en": "Why is it important to keep the skin between the toes clean and thoroughly dry?",
+    "ta": "கால் விரல்களுக்கு இடைப்பட்ட பகுதியை சுத்தமாகவும் உலர்வாகவும் வைத்திருப்பது ஏன் முக்கியம்?"
+  },
+  {
+    "id": "eye_health_01",
+    "topic": "eye health",
+    "en": "What is diabetic retinopathy and why are annual dilated eye examinations recommended?",
+    "ta": "டயாபெடிக் ரெட்டினோபதி என்றால் என்ன, ஆண்டுதோறும் கண் பரிசோதனை செய்வது ஏன் பரிந்துரைக்கப்படுகிறது?"
+  },
+  {
+    "id": "eye_health_02",
+    "topic": "eye health",
+    "en": "What early visual changes should prompt a visit to an eye care specialist?",
+    "ta": "பார்வையில் என்ன மாற்றங்கள் ஏற்பட்டால் கண் மருத்துவரை உடனே அணுக வேண்டும்?"
+  },
+  {
+    "id": "kidney_health_01",
+    "topic": "kidney health",
+    "en": "How does long-term blood glucose and blood pressure management protect kidney function?",
+    "ta": "நீண்ட கால இரத்த சர்க்கரை மற்றும் இரத்த அழுத்த மேலாண்மை சிறுநீரக செயல்பாட்டை எவ்வாறு பாதுகாக்கிறது?"
+  },
+  {
+    "id": "kidney_health_02",
+    "topic": "kidney health",
+    "en": "What routine tests, such as urine albumin and serum creatinine, check kidney health?",
+    "ta": "சிறுநீரக ஆரோக்கியத்தை கண்காணிக்க உதவும் சிறுநீர் அல்புமின் மற்றும் கிரியேட்டினின் பரிசோதனைகள் யாவை?"
+  },
+  {
+    "id": "blood_pressure_01",
+    "topic": "blood pressure",
+    "en": "Why is maintaining healthy blood pressure especially important alongside diabetes?",
+    "ta": "சர்க்கரை நோயுடன் சேர்த்து இரத்த அழுத்தத்தையும் சீராக பராமரிப்பது ஏன் மிகவும் முக்கியம்?"
+  },
+  {
+    "id": "blood_pressure_02",
+    "topic": "blood pressure",
+    "en": "How do reducing dietary salt and staying active support blood pressure wellness?",
+    "ta": "உணவில் உப்பை குறைப்பதும் சுறுசுறுப்பாக இருப்பதும் இரத்த அழுத்தத்தை கட்டுக்குள் வைக்க எவ்வாறு உதவுகின்றன?"
+  },
+  {
+    "id": "cholesterol_01",
+    "topic": "cholesterol",
+    "en": "What is the difference between LDL (bad cholesterol) and HDL (good cholesterol)?",
+    "ta": "LDL (கெட்ட கொழுப்பு) மற்றும் HDL (நல்ல கொழுப்பு) இடையே உள்ள வேறுபாடு என்ன?"
+  },
+  {
+    "id": "cholesterol_02",
+    "topic": "cholesterol",
+    "en": "Why is an annual lipid profile test recommended for cardiovascular wellness in diabetes?",
+    "ta": "சர்க்கரை நோய் உள்ளவர்களுக்கு இதய நலனை பாதுகாக்க ஆண்டுதோறும் கொழுப்பு பரிசோதனை (Lipid Profile) ஏன் பரிந்துரைக்கப்படுகிறது?"
+  },
+  {
+    "id": "doctor_visits_01",
+    "topic": "doctor visits",
+    "en": "What key questions and daily logs are helpful to prepare before a routine doctor appointment?",
+    "ta": "வழக்கமான மருத்துவர் சந்திப்பிற்கு முன் என்ன குறிப்புகள் மற்றும் கேள்விகளை தயார் செய்து கொள்வது நல்லது?"
+  },
+  {
+    "id": "doctor_visits_02",
+    "topic": "doctor visits",
+    "en": "How often should routine comprehensive diabetes reviews be scheduled with a physician?",
+    "ta": "மருத்துவருடன் வழக்கமான விரிவான நீரிழிவு மறுஆய்வை எவ்வளவு காலத்திற்கு ஒருமுறை திட்டமிட வேண்டும்?"
+  },
+  {
+    "id": "glucose_tracking_01",
+    "topic": "glucose tracking",
+    "en": "Why is recording glucose readings with notes on meals and activity useful over time?",
+    "ta": "சர்க்கரை அளவுகளுடன் உணவு மற்றும் செயல்பாட்டுக் குறிப்புகளை பதிவு செய்வது ஏன் நீண்டகால பலன் தரும்?"
+  },
+  {
+    "id": "glucose_tracking_02",
+    "topic": "glucose tracking",
+    "en": "How does tracking patterns across days help identify personal trends rather than single numbers?",
+    "ta": "ஒற்றை எண்ணை விட பல நாள் போக்குகளை கண்காணிப்பது தனிப்பட்ட உடல் பழக்கங்களை புரிந்துகொள்ள எவ்வாறு உதவுகிறது?"
+  },
+  {
+    "id": "myths_01",
+    "topic": "myths",
+    "en": "Is it true that eating extremely bitter foods like bitter gourd can cure diabetes?",
+    "ta": "பாகற்காய் போன்ற கசப்பான உணவுகளை சாப்பிட்டால் சர்க்கரை நோய் முழுமையாக குணமாகிவிடும் என்பது உண்மையா?"
+  },
+  {
+    "id": "myths_02",
+    "topic": "myths",
+    "en": "Is it a myth that people with diabetes must completely avoid all fresh fruits?",
+    "ta": "சர்க்கரை நோய் உள்ளவர்கள் புதிய பழங்களை முற்றிலும் தவிர்க்க வேண்டும் என்பது உண்மையா?"
+  },
+  {
+    "id": "myths_03",
+    "topic": "myths",
+    "en": "Can diabetes be caused simply by eating sweets on a single occasion?",
+    "ta": "ஒரே ஒரு முறை அதிக இனிப்பு சாப்பிடுவதால் மட்டுமே சர்க்கரை நோய் வந்துவிடுமா?"
+  },
+  {
+    "id": "seek_help_01",
+    "topic": "when to seek help",
+    "en": "What warning signs indicate that you should promptly contact your healthcare provider?",
+    "ta": "எந்தெந்த எச்சரிக்கை அறிகுறிகள் தென்பட்டால் உடனடியாக மருத்துவரை தொடர்பு கொள்ள வேண்டும்?"
+  },
+  {
+    "id": "seek_help_02",
+    "topic": "when to seek help",
+    "en": "When do persistent high glucose readings or unexplained weight loss warrant medical review?",
+    "ta": "தொடர்ந்து அதிக சர்க்கரை அளவு அல்லது காரணமற்ற எடை இழப்பு ஏற்படும்போது எப்போது மருத்துவரை அணுக வேண்டும்?"
+  },
+  {
+    "id": "seek_help_03",
+    "topic": "when to seek help",
+    "en": "What severe symptoms require immediate emergency medical care (such as calling 108)?",
+    "ta": "உடனடி அவசர மருத்துவ உதவியை (108 அழைப்பு போன்றவை) கோரும் தீவிர அறிகுறிகள் யாவை?"
+  }
+];
 
-    categories.forEach(cat => {
-        const tabBtn = document.createElement('button');
-        tabBtn.type = 'button';
-        tabBtn.className = `category-tab-btn ${cat.id === activeCategory ? 'active' : ''}`;
-        tabBtn.innerHTML = `<span>${cat.icon}</span> <span>${cat.name}</span>`;
-        tabBtn.setAttribute('role', 'tab');
-        tabBtn.setAttribute('aria-selected', cat.id === activeCategory ? 'true' : 'false');
+const TOPIC_ICONS = {
+    'basics': '🩺',
+    'type 1': '🩺',
+    'type 2': '🩺',
+    'gestational': '🤰',
+    'glucose': '🩸',
+    'fasting': '⏱️',
+    'post-meal': '🍽️',
+    'hba1c': '📊',
+    'hypoglycemia awareness': '⚠️',
+    'hyperglycemia awareness': '📈',
+    'healthy eating': '🥗',
+    'carbohydrates': '🌾',
+    'fiber': '🥬',
+    'hydration': '💧',
+    'activity': '🏃',
+    'sleep': '🌙',
+    'stress': '🧘',
+    'foot care': '🦶',
+    'eye health': '👁️',
+    'kidney health': '🫘',
+    'blood pressure': '💓',
+    'cholesterol': '🫀',
+    'doctor visits': '👨‍⚕️',
+    'glucose tracking': '📝',
+    'myths': '💡',
+    'when to seek help': '🚨'
+};
 
-        tabBtn.addEventListener('click', () => {
-            activeCategory = cat.id;
-            renderCategoriesAndQuestions();
-        });
+function getTopicIcon(topic) {
+    if (!topic) return '💡';
+    return TOPIC_ICONS[topic.toLowerCase()] || '💡';
+}
 
-        categoryTabs.appendChild(tabBtn);
+function detectTopicFromText(text) {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    const pool = (questionsPool && questionsPool.length > 0) ? questionsPool : DEFAULT_QUESTIONS_POOL;
+    for (const q of pool) {
+        if (q.topic && lower.includes(q.topic.toLowerCase())) return q.topic;
+    }
+    if (lower.includes("fasting") || lower.includes("வெறும் வயிறு")) return "fasting";
+    if (lower.includes("hba1c") || lower.includes("சராசரி")) return "HbA1c";
+    if (lower.includes("food") || lower.includes("உணவு") || lower.includes("சாப்பாடு") || lower.includes("diet")) return "healthy eating";
+    if (lower.includes("walk") || lower.includes("நடைபயிற்சி") || lower.includes("உடற்பயிற்சி") || lower.includes("exercise")) return "activity";
+    if (lower.includes("hypo") || lower.includes("குறைந்த சர்க்கரை")) return "hypoglycemia awareness";
+    if (lower.includes("hyper") || lower.includes("அதிக சர்க்கரை")) return "hyperglycemia awareness";
+    if (lower.includes("foot") || lower.includes("பாதம்")) return "foot care";
+    if (lower.includes("eye") || lower.includes("கண்")) return "eye health";
+    if (lower.includes("kidney") || lower.includes("சிறுநீரகம்")) return "kidney health";
+    if (lower.includes("pressure") || lower.includes("அழுத்தம்")) return "blood pressure";
+    return null;
+}
+
+function pickFreshQuestion(excludeSlotIndex) {
+    const pool = (questionsPool && questionsPool.length > 0) ? questionsPool : DEFAULT_QUESTIONS_POOL;
+    if (!pool || pool.length === 0) return null;
+
+    // Collect IDs currently visible in the OTHER slots (guarantees no duplicates visible at same time)
+    const visibleIds = new Set();
+    for (let i = 0; i < displayedQuestions.length; i++) {
+        if (i !== excludeSlotIndex && displayedQuestions[i]) {
+            visibleIds.add(displayedQuestions[i].id);
+        }
+    }
+
+    // Filter available pool: cannot duplicate currently visible, used, or recently shown
+    let candidates = pool.filter(q =>
+        !visibleIds.has(q.id) &&
+        !usedQuestionIds.has(q.id) &&
+        !recentlyShownIds.has(q.id)
+    );
+
+    // If pool is exhausted, safely reset session tracking
+    if (candidates.length === 0) {
+        usedQuestionIds.clear();
+        recentlyShownIds.clear();
+        visibleIds.forEach(id => recentlyShownIds.add(id));
+        candidates = pool.filter(q => !visibleIds.has(q.id));
+        if (candidates.length === 0) {
+            candidates = pool;
+        }
+    }
+
+    // Prefer questions on the same topic as the last question/answer
+    let chosen = null;
+    if (lastTopic) {
+        const sameTopic = candidates.filter(q => q.topic && q.topic.toLowerCase() === lastTopic.toLowerCase());
+        if (sameTopic.length > 0) {
+            chosen = sameTopic[Math.floor(Math.random() * sameTopic.length)];
+        }
+    }
+
+    // Otherwise random from candidates
+    if (!chosen) {
+        chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    if (chosen) {
+        recentlyShownIds.add(chosen.id);
+        // Keep recentlyShownIds rolling window bounded
+        if (recentlyShownIds.size > 25) {
+            const arr = Array.from(recentlyShownIds);
+            recentlyShownIds = new Set(arr.slice(arr.length - 20));
+        }
+    }
+
+    return chosen;
+}
+
+function createQuestionCardElement(qObj, slotIndex) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'question-card';
+    card.setAttribute('data-slot', String(slotIndex));
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('role', 'button');
+
+    const icon = getTopicIcon(qObj.topic);
+    const qText = qObj[currentLang] || qObj.en || qObj.ta || '';
+
+    card.setAttribute('aria-label', qText);
+    card.innerHTML = `
+        <span class="question-icon" aria-hidden="true">${icon}</span>
+        <span class="question-text">${escapeHTML(qText)}</span>
+    `;
+
+    card.addEventListener('click', () => {
+        handleSuggestionClick(slotIndex);
     });
 
+    return card;
+}
+
+function handleSuggestionClick(slotIndex) {
+    if (isProcessing) return;
+    const clickedQ = displayedQuestions[slotIndex];
+    if (!clickedQ) return;
+
+    const qText = clickedQ[currentLang] || clickedQ.en || clickedQ.ta || '';
+
+    // Send it to chat exactly as now
+    lastInputWasVoice = false;
+    userInput.value = qText;
+    handleMessageSubmit();
+
+    // Track displayed, used, and recently shown questions for the session
+    usedQuestionIds.add(clickedQ.id);
+    recentlyShownIds.add(clickedQ.id);
+    if (clickedQ.topic) {
+        lastTopic = clickedQ.topic;
+    }
+
+    // Pick fresh question for ONLY this slot
+    const freshQ = pickFreshQuestion(slotIndex);
+    displayedQuestions[slotIndex] = freshQ;
+
+    // Replace ONLY that slot in the DOM; the other two stay in place
+    replaceSlotCardInDOM(slotIndex, freshQ);
+}
+
+function replaceSlotCardInDOM(slotIndex, freshQ) {
+    if (!freshQ) return;
+    const oldCard = questionCardsGrid.querySelector(`[data-slot="${slotIndex}"]`) || questionCardsGrid.children[slotIndex];
+    const newCard = createQuestionCardElement(freshQ, slotIndex);
+
+    if (oldCard && oldCard.parentNode === questionCardsGrid) {
+        questionCardsGrid.replaceChild(newCard, oldCard);
+    } else {
+        questionCardsGrid.appendChild(newCard);
+    }
+}
+
+function initSuggestedQuestions() {
+    if (categoryTabs) categoryTabs.style.display = 'none';
+
+    for (let slot = 0; slot < 3; slot++) {
+        if (!displayedQuestions[slot]) {
+            displayedQuestions[slot] = pickFreshQuestion(slot);
+        }
+    }
+    renderSuggestedQuestionsUI();
+}
+
+function renderSuggestedQuestionsUI() {
+    if (categoryTabs) categoryTabs.style.display = 'none';
     questionCardsGrid.innerHTML = '';
-    const currentCatObj = categories.find(c => c.id === activeCategory) || categories[0];
 
-    currentCatObj.questions.forEach(qText => {
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'question-card';
-        card.innerHTML = `
-            <span class="question-icon" aria-hidden="true">${currentCatObj.icon}</span>
-            <span class="question-text">${escapeHTML(qText)}</span>
-        `;
+    for (let slot = 0; slot < 3; slot++) {
+        if (displayedQuestions[slot]) {
+            const card = createQuestionCardElement(displayedQuestions[slot], slot);
+            questionCardsGrid.appendChild(card);
+        }
+    }
+}
 
-        card.addEventListener('click', () => {
-            if (!isProcessing) {
-                lastInputWasVoice = false;
-                userInput.value = qText;
-                handleMessageSubmit();
+function updateSuggestedQuestionsLanguage(lang) {
+    for (let slot = 0; slot < 3; slot++) {
+        const qObj = displayedQuestions[slot];
+        if (!qObj) continue;
+        const card = questionCardsGrid.querySelector(`[data-slot="${slot}"]`) || questionCardsGrid.children[slot];
+        if (card) {
+            const qText = qObj[lang] || qObj.en || qObj.ta || '';
+            const textEl = card.querySelector('.question-text');
+            if (textEl) {
+                textEl.textContent = qText;
             }
-        });
+            card.setAttribute('aria-label', qText);
+        }
+    }
+}
 
-        questionCardsGrid.appendChild(card);
-    });
+function renderCategoriesAndQuestions() {
+    if (categoryTabs) categoryTabs.style.display = 'none';
+    if (!displayedQuestions[0] || !displayedQuestions[1] || !displayedQuestions[2]) {
+        initSuggestedQuestions();
+    } else {
+        updateSuggestedQuestionsLanguage(currentLang);
+    }
+}
+
+async function fetchSuggestedQuestionsPool() {
+    try {
+        const res = await fetch('/questions/suggested');
+        if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.questions) && data.questions.length > 0) {
+                questionsPool = data.questions;
+            }
+        }
+    } catch (err) {
+        // Silently fallback to DEFAULT_QUESTIONS_POOL
+    }
 }
 
 function resetChat() {
@@ -962,6 +1544,12 @@ function resetChat() {
 async function handleMessageSubmit() {
     const message = userInput.value.trim();
     if (!message || isProcessing) return;
+
+    // Track topic from message for subsequent suggestion preference
+    const detectedTopic = detectTopicFromText(message);
+    if (detectedTopic) {
+        lastTopic = detectedTopic;
+    }
 
     stopSpeech();
 
@@ -1676,12 +2264,11 @@ function initEventListeners() {
 
     toggleSuggestionsBtn.addEventListener('click', () => {
         suggestionsVisible = !suggestionsVisible;
+        categoryTabs.style.display = 'none';
         if (suggestionsVisible) {
-            categoryTabs.style.display = 'flex';
             questionCardsGrid.style.display = 'grid';
             toggleSuggestionsText.textContent = I18N[currentLang].hideSuggestions;
         } else {
-            categoryTabs.style.display = 'none';
             questionCardsGrid.style.display = 'none';
             toggleSuggestionsText.textContent = I18N[currentLang].showSuggestions;
         }
@@ -1894,4 +2481,5 @@ document.addEventListener('DOMContentLoaded', () => {
     loadVoices();
     renderGlucoseChart();
     renderTrackerHistory();
+    fetchSuggestedQuestionsPool();
 });

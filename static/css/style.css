@@ -783,6 +783,8 @@ body {
     font-weight: 500;
     color: var(--text-primary);
     line-height: 1.45;
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Voice Preview Bar */
