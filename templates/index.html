@@ -319,6 +319,23 @@
                             </button>
                         </form>
 
+                        <!-- Module A3: Polite Educational Glucose Feedback Card -->
+                        <div id="glucose-response-card" class="glucose-response-card hidden" aria-live="polite">
+                            <div class="response-card-header">
+                                <div class="response-header-left">
+                                    <span class="response-card-icon" id="glucose-response-icon">💡</span>
+                                    <strong id="glucose-response-title">கல்வி வழிகாட்டல் (Educational Feedback)</strong>
+                                </div>
+                                <button type="button" id="glucose-response-close" class="response-close-btn" title="மூடுக (Close)" aria-label="Close feedback">✕</button>
+                            </div>
+                            <div class="response-card-body" id="glucose-response-body">
+                                <!-- Populated dynamically -->
+                            </div>
+                            <div class="response-card-disclaimer" id="glucose-response-disclaimer">
+                                ℹ️ இது பொதுவான கல்வி விழிப்புணர்வு தகவல் மட்டுமே, நோய் கண்டறிதல் அல்ல.
+                            </div>
+                        </div>
+
                         <!-- Form 2: Daily Wellness Log Form (Hidden by default) -->
                         <form id="wellness-entry-form" class="tracker-form hidden" autocomplete="off">
                             <h4 id="form-wellness-title" class="form-title">தினசரி நல்வாழ்வுப் பதிவு (Daily Wellness)</h4>

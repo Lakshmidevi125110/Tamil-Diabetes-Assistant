@@ -1633,6 +1633,101 @@ body {
     font-size: 0.8rem;
     max-width: 260px;
     line-height: 1.4;
+/* Module A3: Glucose Educational Feedback Card */
+.glucose-response-card {
+    margin-top: 14px;
+    padding: 14px 16px;
+    background-color: #f0fdfa;
+    border: 1px solid #99f6e4;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    animation: fadeIn 0.25s ease-out;
+}
+
+.glucose-response-card.hidden {
+    display: none !important;
+}
+
+.glucose-response-card.emergency {
+    background-color: #fff1f2;
+    border-color: #fecdd3;
+}
+
+.response-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(15, 118, 110, 0.12);
+}
+
+.response-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.response-card-icon {
+    font-size: 1.1rem;
+}
+
+.response-header-left strong {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.response-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s ease;
+}
+
+.response-close-btn:hover {
+    color: var(--text-primary);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.response-card-body {
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.response-card-body p {
+    margin-bottom: 8px;
+}
+
+.response-card-body p:last-child {
+    margin-bottom: 0;
+}
+
+.response-loading-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 0.84rem;
+    padding: 4px 0;
+}
+
+.response-card-disclaimer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(15, 118, 110, 0.18);
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    overflow-wrap: break-word;
 }
 
 /* Delete Confirmation Modal */

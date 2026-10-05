@@ -112,6 +112,12 @@ const I18N = {
         btnCancel: "ரத்து (Cancel)",
         btnDelete: "நீக்கு (Delete)",
 
+        // Module A3: Glucose Feedback Strings
+        glucoseFeedbackTitle: "கல்வி வழிகாட்டல் (Educational Feedback)",
+        glucoseFeedbackDisclaimer: "ℹ️ இது பொதுவான கல்வி விழிப்புணர்வு தகவல் மட்டுமே, நோய் கண்டறிதல் அல்ல.",
+        glucoseFeedbackLoading: "கல்வி வழிகாட்டல் விளக்கத்தைப் பெறுகிறது...",
+        glucoseFeedbackFallback: "கல்வி வழிகாட்டல் தகவலை தற்போது பெற முடியவில்லை. உங்கள் அளவு உங்கள் சாதனத்தில் பாதுகாப்பாக பதிவு செய்யப்பட்டுள்ளது.",
+
         // Suggested Questions Categories
         categories: [
             {
@@ -263,6 +269,12 @@ const I18N = {
         deleteModalDesc: "Are you sure you want to permanently delete this entry? This action cannot be undone.",
         btnCancel: "Cancel",
         btnDelete: "Delete",
+
+        // Module A3: Glucose Feedback Strings
+        glucoseFeedbackTitle: "Educational Feedback",
+        glucoseFeedbackDisclaimer: "ℹ️ This is general educational information, not a diagnosis.",
+        glucoseFeedbackLoading: "Getting educational guidance...",
+        glucoseFeedbackFallback: "Unable to retrieve automated educational feedback right now. Your reading has been safely saved on your device.",
 
         // Suggested Questions Categories
         categories: [
@@ -419,8 +431,15 @@ const inputGlucoseDate = document.getElementById('input-glucose-date');
 const labelGlucoseTime = document.getElementById('label-glucose-time');
 const inputGlucoseTime = document.getElementById('input-glucose-time');
 const labelGlucoseNotes = document.getElementById('label-glucose-notes');
-const inputGlucoseNotes = document.getElementById('input-glucose-notes');
 const btnTextAddGlucose = document.getElementById('btn-text-add-glucose');
+
+// Module A3: Glucose Educational Feedback Elements
+const glucoseResponseCard = document.getElementById('glucose-response-card');
+const glucoseResponseTitle = document.getElementById('glucose-response-title');
+const glucoseResponseIcon = document.getElementById('glucose-response-icon');
+const glucoseResponseBody = document.getElementById('glucose-response-body');
+const glucoseResponseDisclaimer = document.getElementById('glucose-response-disclaimer');
+const glucoseResponseClose = document.getElementById('glucose-response-close');
 
 const formWellnessTitle = document.getElementById('form-wellness-title');
 const labelWellnessWalking = document.getElementById('label-wellness-walking');
@@ -1581,6 +1600,10 @@ function setLanguage(lang) {
     labelGlucoseNotes.textContent = t.labelNotes;
     btnTextAddGlucose.textContent = t.btnAddGlucose;
 
+    // Module A3 feedback card
+    if (glucoseResponseTitle) glucoseResponseTitle.textContent = t.glucoseFeedbackTitle;
+    if (glucoseResponseDisclaimer) glucoseResponseDisclaimer.textContent = t.glucoseFeedbackDisclaimer;
+
     formWellnessTitle.textContent = t.formWellnessTitle;
     labelWellnessWalking.textContent = t.labelWalking;
     unitWalking.textContent = t.unitWalking;
@@ -1727,6 +1750,52 @@ function initEventListeners() {
         inputGlucoseNotes.value = '';
         renderGlucoseChart();
         renderTrackerHistory();
+
+        // Module A3: Request polite educational feedback from /glucose/respond
+        if (glucoseResponseCard) {
+            glucoseResponseCard.classList.remove('hidden');
+            glucoseResponseCard.classList.remove('emergency');
+            glucoseResponseIcon.textContent = '💡';
+            glucoseResponseBody.innerHTML = `
+                <div class="response-loading-row">
+                    <span>⏳</span>
+                    <span>${I18N[currentLang].glucoseFeedbackLoading}</span>
+                </div>
+            `;
+
+            fetch('/glucose/respond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    value: numVal,
+                    measurement_type: type,
+                    language: currentLang,
+                    symptoms: notes
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.response) {
+                    if (data.status === 'emergency') {
+                        glucoseResponseCard.classList.add('emergency');
+                        glucoseResponseIcon.textContent = '🚨';
+                    } else {
+                        glucoseResponseCard.classList.remove('emergency');
+                        glucoseResponseIcon.textContent = '💡';
+                    }
+                    const safeHtml = escapeHTML(data.response)
+                        .replace(/\n\n/g, '</p><p>')
+                        .replace(/\n/g, '<br>');
+                    glucoseResponseBody.innerHTML = `<p>${safeHtml}</p>`;
+                } else {
+                    glucoseResponseBody.innerHTML = `<p>${I18N[currentLang].glucoseFeedbackFallback}</p>`;
+                }
+            })
+            .catch(err => {
+                console.warn("Unable to fetch educational glucose response:", err);
+                glucoseResponseBody.innerHTML = `<p>${I18N[currentLang].glucoseFeedbackFallback}</p>`;
+            });
+        }
     });
 
     // Daily Wellness Form Submission
@@ -1769,6 +1838,13 @@ function initEventListeners() {
     deleteModal.addEventListener('click', (e) => {
         if (e.target === deleteModal) hideDeleteModal();
     });
+
+    // Module A3: Close Feedback Card
+    if (glucoseResponseClose) {
+        glucoseResponseClose.addEventListener('click', () => {
+            if (glucoseResponseCard) glucoseResponseCard.classList.add('hidden');
+        });
+    }
 }
 
 function setHistoryFilter(filter) {
