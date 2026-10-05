@@ -5,6 +5,7 @@ from services.guardrails import (
     chat_limiter,
     validate_input_length,
     check_emergency_symptoms,
+    check_crisis_or_self_harm,
     get_client_ip
 )
 from services.safety_validator import (
@@ -90,7 +91,18 @@ def chat():
             "reply": emergency_response
         }), 200
 
-    # 5b. Safety Validator: Medication / Dosage Adjustment Interceptor
+    # 5b. Crisis & Self-harm Interceptor
+    crisis_response = check_crisis_or_self_harm(user_message, language=language)
+    if crisis_response:
+        logger.warning("💙 Crisis/self-harm expression intercepted with supportive helpline response.")
+        return jsonify({
+            "status": "crisis_support",
+            "received_message": user_message,
+            "language": language,
+            "reply": crisis_response
+        }), 200
+
+    # 5c. Safety Validator: Medication / Dosage Adjustment Interceptor
     med_response = check_medication_change_query(user_message, language=language)
     if med_response:
         logger.info("Medication adjustment query intercepted with educational refusal.")

@@ -58,29 +58,46 @@ def validate_input_length(message: str, language: str = "ta") -> Tuple[bool, Opt
         return False, err
     return True, None
 
-# Emergency keyword dictionary
+# Emergency keyword dictionary (Expanded for Module A6)
 EMERGENCY_KEYWORDS_EN = [
     r"\bunconscious\b", r"\bunconsciousness\b", r"\bfainted\b", r"\bfainting\b", r"\bpassed out\b",
     r"\bchest pain\b", r"\bheart attack\b", r"\bsevere shortness of breath\b",
-    r"\bcannot breathe\b", r"\bseizure\b", r"\bconvulsion\b", r"\bcannot swallow\b",
+    r"\bcannot breathe\b", r"\bcan't breathe\b", r"\bcant breathe\b", r"\bdifficulty breathing\b", r"\btrouble breathing\b",
+    r"\bseizure\b", r"\bseizures\b", r"\bconvulsion\b", r"\bconvulsions\b",
+    r"\bcannot swallow\b", r"\bunable to swallow\b", r"\bcan't swallow\b", r"\bcant swallow\b",
     r"\binability to swallow\b", r"\bchoking\b",
+    r"\bsevere confusion\b", r"\bvery confused\b", r"\bextremely confused\b",
+    r"\bcannot stay awake\b", r"\bunable to stay awake\b", r"\bcan't stay awake\b", r"\bcant stay awake\b",
     r"\bsugar (?:is |below |under )?[234]\d\b", # sugar below 50
     r"\bblood sugar (?:below |under |is )?[234]\d\b"
 ]
 
 EMERGENCY_KEYWORDS_TA = [
-    "மயக்கம்", "மயங்கி", "நினைவிழந்த", "சுயநினைவு", "சுயநினைவிழந்த", "எழுப்ப முடியவில்லை",
-    "நெஞ்சு வலி", "மூச்சுத்திணறல்", "மூச்சு திணறல்", "வலிப்பு", "கை கால் நடுக்கம்",
-    "விழுங்க முடியவில்லை", "சர்க்கரை 30", "சர்க்கரை 40", "சர்க்கரை 45", "சர்க்கரை 50"
+    "மயக்கம்", "மயங்கி", "நினைவிழந்த", "சுயநினைவு", "சுயநினைவிழந்த", "சுயநினைவு இல்லை", "எழுப்ப முடியவில்லை",
+    "நெஞ்சு வலி", "மாரடைப்பு", "மூச்சுத்திணறல்", "மூச்சு திணறல்", "மூச்சு விட முடியவில்லை",
+    "சுவாசிக்க முடியவில்லை", "வலிப்பு", "கை கால் நடுக்கம்", "விழுங்க முடியவில்லை",
+    "விழுங்க இயலவில்லை", "குழப்பமாக", "குழப்பம்", "விழிக்க முடியவில்லை", "விழித்திருக்க முடியவில்லை", "விழித்திருக்க இயலவில்லை",
+    "சர்க்கரை 30", "சர்க்கரை 40", "சர்க்கரை 45", "சர்க்கரை 50"
+]
+
+# Crisis & Self-harm indicators
+CRISIS_KEYWORDS_EN = [
+    r"\bsuicide\b", r"\bkill myself\b", r"\bend my life\b", r"\bwant to die\b",
+    r"\bself-harm\b", r"\bharm myself\b", r"\bdon't want to live\b", r"\bdont want to live\b",
+    r"\bhurt myself\b"
+]
+
+CRISIS_KEYWORDS_TA = [
+    "தற்கொலை", "வாழ பிடிக்கவில்லை", "சாக வேண்டும்", "உயிரை மாய்த்து", "தன்னை காயப்படுத்த", "வாழ விருப்பமில்லை"
 ]
 
 def check_emergency_symptoms(message: str, language: str = "ta") -> Optional[str]:
     """
     Deterministic rule-based medical emergency interceptor.
-    If life-threatening symptoms are detected, returns an immediate urgent protocol.
+    Returns a short, calm urgent-care message (including 108 for India)
+    before and instead of any long educational text.
     """
     msg_lower = message.lower()
-
     is_emergency = False
 
     # Check English patterns
@@ -99,23 +116,57 @@ def check_emergency_symptoms(message: str, language: str = "ta") -> Optional[str
     if is_emergency:
         if language == "en":
             return (
-                "🚨 CRITICAL MEDICAL EMERGENCY ALERT:\n"
-                "The symptoms you described (such as fainting, severe hypoglycemia, chest pain, or breathing difficulty) "
-                "require IMMEDIATE emergency medical attention!\n\n"
-                "1. Call 108 or your local emergency medical service IMMEDIATELY.\n"
-                "2. If the person is conscious with severe low blood sugar (<50 mg/dL), provide 15–20g of fast-acting sugar (fruit juice, glucose candy) right away.\n"
-                "3. If the person is unconscious, DO NOT force anything into their mouth; place them on their side in the recovery position and wait for emergency responders.\n\n"
-                "⚠️ Disclaimer: This is an emergency guidance alert. Do not wait for AI responses—seek emergency medical help immediately."
+                "🚨 CRITICAL MEDICAL EMERGENCY:\n"
+                "Please seek urgent emergency medical help right now. "
+                "Call 108 immediately (or your local emergency medical service), "
+                "or have someone take you to the nearest hospital emergency room.\n\n"
+                "⚠️ This requires immediate medical attention. Do not wait for AI responses."
             )
         else:
             return (
                 "🚨 அவசர மருத்துவ எச்சரிக்கை (EMERGENCY):\n"
-                "நீங்கள் குறிப்பிட்ட அறிகுறிகள் (மயக்கம், தீவிர சர்க்கரை குறைவு, நெஞ்சு வலி, அல்லது மூச்சுத்திணறல்) "
-                "உடனடி அவசர மருத்துவ சிகிச்சையைக் கோருகின்றன!\n\n"
-                "1. உடனடியாக 108 அல்லது அருகிலுள்ள அவசர சிகிச்சைப் பிரிவை (Hospital Emergency) அழைக்கவும்.\n"
-                "2. நோயாளிக்கு சுயநினைவு இருந்து, சர்க்கரை மிகவும் குறைவாக இருந்தால் (<50 mg/dL), உடனடியாக 15-20 கிராம் குளுக்கோஸ் அல்லது பழச்சாறு கொடுக்கவும்.\n"
-                "3. நோயாளிக்கு சுயநினைவு இல்லை (மயக்கம்) என்றால், வாயில் எதையும் திணிக்க வேண்டாம்; அவரை ஒரு பக்கமாக சாய்த்து படுக்க வைத்து ஆம்புலன்ஸுக்கு காத்திருக்கவும்.\n\n"
-                "⚠️ எச்சரிக்கை: இது அவசர கால பாதுகாப்பு எச்சரிக்கை. தாமதிக்காமல் மருத்துவ உதவியை உடனே நாடவும்."
+                "தயவுசெய்து உடனடியாக அவசர மருத்துவ உதவியை நாடுங்கள். "
+                "உடனே 108 ஆம்புலன்ஸ் அவசர சேவையை அழைக்கவும், அல்லது அருகிலுள்ள மருத்துவமனை அவசர சிகிச்சைப் பிரிவிற்கு செல்லவும்.\n\n"
+                "⚠️ இதற்கு உடனடி அவசர சிகிச்சை தேவை. AI பதில்களுக்காக காத்திருக்க வேண்டாம்."
+            )
+
+    return None
+
+def check_crisis_or_self_harm(message: str, language: str = "ta") -> Optional[str]:
+    """
+    Detects expressions of self-harm and responds with a short, compassionate
+    message encouraging immediate contact with a trusted person or crisis service.
+    """
+    msg_lower = message.lower()
+    is_crisis = False
+
+    for pat in CRISIS_KEYWORDS_EN:
+        if re.search(pat, msg_lower):
+            is_crisis = True
+            break
+
+    if not is_crisis:
+        for kw in CRISIS_KEYWORDS_TA:
+            if kw in msg_lower:
+                is_crisis = True
+                break
+
+    if is_crisis:
+        if language == "en":
+            return (
+                "💙 You are not alone, and supportive help is available right now. "
+                "Please reach out to someone you trust, or connect with a compassionate, confidential crisis service:\n\n"
+                "• Tele-MANAS (India National Mental Health Helpline): Call 14416 or 1800-891-4416 (Toll-free, 24/7)\n"
+                "• Kiran Mental Health Helpline: 1800-599-0019\n"
+                "• Or speak to a trusted family member, friend, or healthcare professional right away."
+            )
+        else:
+            return (
+                "💙 நீங்கள் தனியாக இல்லை, உங்களுக்கு ஆதரவளிக்க பலர் தயாராக இருக்கிறார்கள். "
+                "தயவுசெய்து உங்களுக்கு பிடித்தவர்கள், குடும்பத்தினர் அல்லது உடனடி உதவி எண்களைத் தொடர்பு கொள்ளவும்:\n\n"
+                "• டெலி-மானாஸ் (Tele-MANAS தேசிய உதவி எண்): 14416 அல்லது 1800-891-4416 (இலவசம், 24/7)\n"
+                "• சினேகா உதவி மையம் (Sneha Helpline): 044-24640050\n"
+                "• அல்லது உங்கள் குடும்பத்தினர், நண்பர்கள் அல்லது மருத்துவரை உடனடியாக அணுகவும்."
             )
 
     return None

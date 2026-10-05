@@ -30,6 +30,70 @@ def test_emergency_interceptor_english(client):
     assert "CRITICAL MEDICAL EMERGENCY" in data.get("reply", "")
 
 
+def test_emergency_severe_confusion_cannot_stay_awake_english(client):
+    """Test required scenario: 'I feel very confused and I cannot stay awake' in English."""
+    payload = {
+        "message": "I feel very confused and I cannot stay awake",
+        "language": "en"
+    }
+    response = client.post("/chat", json=payload)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data.get("status") == "emergency"
+    reply = data.get("reply", "")
+    assert "108" in reply
+    assert "emergency" in reply.lower()
+    # Ensure it is a short, calm urgent-care message without treatment steps
+    assert len(reply) < 350
+    assert "insulin" not in reply.lower()
+    assert "dose" not in reply.lower()
+
+
+def test_emergency_severe_confusion_cannot_stay_awake_tamil(client):
+    """Test required scenario: 'I feel very confused and I cannot stay awake' in Tamil."""
+    payload = {
+        "message": "எனக்கு மிகவும் குழப்பமாக இருக்கிறது என்னால் விழித்திருக்க முடியவில்லை",
+        "language": "ta"
+    }
+    response = client.post("/chat", json=payload)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data.get("status") == "emergency"
+    reply = data.get("reply", "")
+    assert "108" in reply
+    assert "அவசர" in reply
+    assert len(reply) < 350
+
+
+def test_crisis_self_harm_interceptor_english(client):
+    """Test that self-harm or suicidal expression in English returns crisis support with helpline."""
+    payload = {
+        "message": "I don't want to live anymore, feeling suicidal",
+        "language": "en"
+    }
+    response = client.post("/chat", json=payload)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data.get("status") == "crisis_support"
+    reply = data.get("reply", "")
+    assert "14416" in reply or "Tele-MANAS" in reply
+
+
+def test_crisis_self_harm_interceptor_tamil(client):
+    """Test that self-harm or suicidal expression in Tamil returns compassionate crisis support."""
+    payload = {
+        "message": "எனக்கு வாழ பிடிக்கவில்லை, தற்கொலை எண்ணம் வருகிறது",
+        "language": "ta"
+    }
+    response = client.post("/chat", json=payload)
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data.get("status") == "crisis_support"
+    reply = data.get("reply", "")
+    assert "14416" in reply or "சினேகா" in reply
+
+
+
 def test_clean_tamil_text_strips_foreign_artifacts():
     """Test that stray non-Tamil foreign characters (e.g., Arabic \\u06D5) are cleanly removed."""
     dirty_text = "திட\u06D5ீரென ரத்தத்தில் சர்க்கரை அளவு குறைந்தது."
