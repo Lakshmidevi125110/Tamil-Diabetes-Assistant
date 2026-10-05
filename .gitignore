@@ -30,3 +30,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 *.log
+
+# Vector RAG Index
+data/index/
