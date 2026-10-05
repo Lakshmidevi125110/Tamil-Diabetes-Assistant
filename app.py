@@ -5,6 +5,7 @@ from config import Config
 from routes.health import health_bp
 from routes.chat import chat_bp
 from routes.tts import tts_bp
+from routes.glucose import glucose_bp
 
 # Set up logging configuration
 logging.basicConfig(
@@ -25,6 +26,7 @@ def create_app():
     app.register_blueprint(health_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(tts_bp)
+    app.register_blueprint(glucose_bp)
 
     # Default Home route
     @app.route("/", methods=["GET"])

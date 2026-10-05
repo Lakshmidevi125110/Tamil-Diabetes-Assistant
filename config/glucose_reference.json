@@ -1,0 +1,40 @@
+{
+  "_comment": "Educational reference guidelines only. Not intended for individual clinical diagnosis or personal target setting.",
+  "source": "American Diabetes Association (ADA) Standards of Care / RSSDI Guidelines (General Non-Pregnant Adult Educational Reference Ranges)",
+  "disclaimer": "Individual glycemic targets vary widely based on age, health history, and medical guidance. Personal targets must be set with a licensed healthcare professional.",
+  "ranges": {
+    "fasting": {
+      "name_en": "Fasting",
+      "name_ta": "வெறும் வயிற்றில் (Fasting)",
+      "min_typical": 70,
+      "max_typical": 130,
+      "unit": "mg/dL"
+    },
+    "before_meal": {
+      "name_en": "Before Meal",
+      "name_ta": "உணவுக்கு முன் (Before Meal)",
+      "min_typical": 70,
+      "max_typical": 130,
+      "unit": "mg/dL"
+    },
+    "post_meal_2h": {
+      "name_en": "2 Hours Post-Meal",
+      "name_ta": "உணவுக்கு 2 மணி நேரம் பின் (2h Post-Meal)",
+      "min_typical": 70,
+      "max_typical": 180,
+      "unit": "mg/dL"
+    },
+    "random": {
+      "name_en": "Random",
+      "name_ta": "சீரற்ற நேரம் (Random)",
+      "min_typical": 70,
+      "max_typical": 180,
+      "unit": "mg/dL"
+    }
+  },
+  "validation_limits": {
+    "min_valid": 20,
+    "max_valid": 600,
+    "unit": "mg/dL"
+  }
+}
