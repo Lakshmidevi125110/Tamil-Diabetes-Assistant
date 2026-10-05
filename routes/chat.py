@@ -12,6 +12,7 @@ from services.safety_validator import (
     check_medication_change_query,
     validate_ai_reply
 )
+from services.rag_service import generate_rag_response
 
 # Configure logger for this route
 logger = logging.getLogger(__name__)
@@ -124,18 +125,19 @@ def chat():
                 if role in ("user", "assistant") and text:
                     valid_history.append({"role": role, "text": text[:500]})
 
-    # 7. AI Generation with Safety Guardrails & Context
-    ai_reply = generate_ai_response(user_message=user_message, language=language, history=valid_history)
+    # 7. RAG Pipeline: Vector Search -> Re-rank -> Prompt -> Safety Validator -> Tone Validator
+    rag_result = generate_rag_response(
+        user_message=user_message,
+        language=language,
+        history=valid_history
+    )
 
-    # 7b. Safety Validator: Audit reply for diagnosis, prescription, plan, or false reassurance
-    _, validated_reply, violation = validate_ai_reply(ai_reply, language=language)
-    if violation:
-        logger.warning("AI reply sanitized by safety validator. Reason: %s", violation)
-
-    # 8. Return formatted response
+    # 8. Return formatted response with real retrieved sources
     return jsonify({
-        "status": "success",
+        "status": rag_result.get("status", "success"),
         "received_message": user_message,
         "language": language,
-        "reply": validated_reply
+        "reply": rag_result.get("reply", ""),
+        "sources": rag_result.get("sources", []),
+        "rag_applied": rag_result.get("rag_applied", False)
     }), 200

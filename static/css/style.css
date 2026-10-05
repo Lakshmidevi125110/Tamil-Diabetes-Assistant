@@ -1893,3 +1893,60 @@ body {
         display: none;
     }
 }
+
+/* Calm RAG Sources Box in Chat Bubble */
+.rag-sources-box {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: rgba(240, 253, 244, 0.7);
+    border: 1px solid #bbf7d0;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    color: #166534;
+    text-align: left;
+}
+
+.rag-sources-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: #15803d;
+}
+
+.rag-sources-icon {
+    font-size: 0.95rem;
+}
+
+.rag-sources-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.rag-sources-list li {
+    line-height: 1.4;
+}
+
+.rag-source-item-title {
+    font-weight: 600;
+}
+
+.rag-source-item-org {
+    color: #14532d;
+    font-size: 0.75rem;
+}
+
+.rag-source-link {
+    color: #0284c7;
+    text-decoration: underline;
+    margin-left: 4px;
+    font-size: 0.74rem;
+}
+
+.rag-source-link:hover {
+    color: #0369a1;
+}

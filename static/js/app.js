@@ -785,7 +785,7 @@ async function copyMessageText(text, btnElement) {
     }
 }
 
-function appendMessage(sender, text, isEmergency = false, isError = false) {
+function appendMessage(sender, text, isEmergency = false, isError = false, sources = []) {
     const row = document.createElement('div');
     row.className = `message-row ${sender}`;
     if (isEmergency) row.classList.add('emergency');
@@ -809,6 +809,29 @@ function appendMessage(sender, text, isEmergency = false, isError = false) {
     contentDiv.className = 'bubble-content';
     contentDiv.innerHTML = escapeHTML(text).replace(/\n/g, '<br>');
     bubble.appendChild(contentDiv);
+
+    // Render calm RAG sources box if verified documents were retrieved
+    if (sources && Array.isArray(sources) && sources.length > 0) {
+        const sourcesBox = document.createElement('div');
+        sourcesBox.className = 'rag-sources-box';
+        const labelText = currentLang === 'ta' ? 'மருத்துவ ஆதாரங்கள் (Trusted Sources):' : 'Trusted Sources:';
+        sourcesBox.innerHTML = `
+            <div class="rag-sources-title">
+                <span class="rag-sources-icon" aria-hidden="true">📚</span>
+                <span>${labelText}</span>
+            </div>
+            <ul class="rag-sources-list">
+                ${sources.map(s => {
+                    const title = escapeHTML(s.title || 'Guideline');
+                    const src = escapeHTML(s.source || '');
+                    const url = s.url ? escapeHTML(s.url) : '';
+                    const linkHtml = url ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="rag-source-link">🔗 ${currentLang === 'ta' ? 'பார்வை' : 'View'}</a>` : '';
+                    return `<li><span class="rag-source-item-title">${title}</span> <span class="rag-source-item-org">(${src})</span> ${linkHtml}</li>`;
+                }).join('')}
+            </ul>
+        `;
+        bubble.appendChild(sourcesBox);
+    }
 
     const meta = document.createElement('div');
     meta.className = 'bubble-meta';
@@ -1583,9 +1606,10 @@ async function handleMessageSubmit() {
         const data = await response.json();
         removeTypingIndicator();
 
-        if (response.ok && (data.status === 'success' || data.status === 'emergency')) {
+        if (response.ok && (data.status === 'success' || data.status === 'emergency' || data.status === 'insufficient_info' || data.status === 'medication_notice' || data.status === 'crisis_support')) {
             const isEmergency = data.status === 'emergency';
-            const speechBtn = appendMessage('assistant', data.reply, isEmergency, false);
+            const sources = data.sources || [];
+            const speechBtn = appendMessage('assistant', data.reply, isEmergency, false, sources);
 
             conversationHistory.push({ role: 'user', text: message });
             conversationHistory.push({ role: 'assistant', text: data.reply });
