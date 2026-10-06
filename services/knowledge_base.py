@@ -633,14 +633,9 @@ class KnowledgeBase:
                 continue
 
             prev_info = self._file_registry.get(fpath)
-            if prev_info and prev_info.get("mtime") == mtime:
-                report["unchanged"] += 1
-                continue
-
-            # File is either new or modified; compute hash to verify actual content change
             current_hash = self._compute_file_hash(fpath)
+
             if prev_info and prev_info.get("hash") == current_hash:
-                # mtime touched but content identical
                 self._file_registry[fpath]["mtime"] = mtime
                 report["unchanged"] += 1
                 continue
