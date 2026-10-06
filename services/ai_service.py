@@ -5,6 +5,7 @@ from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 from config import Config
+from services.llm_provider import dispatch_llm_request
 
 logger = logging.getLogger(__name__)
 
@@ -178,111 +179,24 @@ def generate_ai_response(
     history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """
-    Generates a safe, trusted, educational response from Google Gemini.
-    Supports multi-turn conversation context, cleans Unicode artifacts,
-    and enforces medical disclaimers.
+    Generates a safe, trusted, educational response using LLMProvider abstraction.
+    Dispatches to primary provider (default: Gemini) and falls back to Claude/Grok
+    only if primary fails and their API keys exist. Never calls more than one provider
+    per question unless primary fails.
     """
-    client = get_gemini_client()
-
-    # Fallback if API key has not been configured in .env yet
-    if not client:
-        logger.warning("GEMINI_API_KEY is not set or is still default placeholder.")
-        if language == "en":
-            return (
-                "⚠️ Notice: Gemini API Key is not configured yet. "
-                "Please add your free GEMINI_API_KEY in the .env file to enable live AI responses.\n\n"
-                "⚠️ Disclaimer: This is educational information only. Please consult your physician for medical advice."
-            )
-        return (
-            "⚠️ குறிப்பு: Gemini API Key இன்னும் அமைக்கப்படவில்லை. "
-            "நேரடி AI பதில்களைப் பெற உங்கள் .env கோப்பில் GEMINI_API_KEY-ஐச் சேர்க்கவும்.\n\n"
-            "⚠️ குறிப்பு: இது விழிப்புணர்வு தகவல் மட்டுமே. மருத்துவ ஆலோசனைக்கு உங்கள் மருத்துவரை அணுகவும்."
-        )
-
-    # Multi-model fallback hierarchy for maximum resilience
-    primary_model = Config.GEMINI_MODEL or "gemini-3.5-flash"
-    candidate_models = [primary_model, "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
-    candidate_models = list(dict.fromkeys(candidate_models))
-
-    config = types.GenerateContentConfig(
+    raw_text = dispatch_llm_request(
+        prompt=user_message,
         system_instruction=SYSTEM_INSTRUCTION,
-        temperature=0.6,
+        history=history,
+        language=language
     )
 
-    # Build multi-turn contents if history is provided
-    contents = []
-    if history and isinstance(history, list):
-        for turn in history[-6:]:  # Keep recent turns for context
-            role = turn.get("role", "")
-            text = turn.get("text", "").strip()
-            if role in ("user", "assistant") and text:
-                gemini_role = "user" if role == "user" else "model"
-                contents.append(
-                    types.Content(
-                        role=gemini_role,
-                        parts=[types.Part.from_text(text=text[:500])]
-                    )
-                )
+    if raw_text:
+        if language == "ta":
+            raw_text = clean_tamil_text(raw_text)
 
-    # Append the current user message
-    contents.append(
-        types.Content(
-            role="user",
-            parts=[types.Part.from_text(text=user_message)]
-        )
-    )
-
-    last_error = None
-    for model_name in candidate_models:
-        try:
-            logger.info("Calling Gemini model [%s] with %d message turns...", model_name, len(contents))
-            response = client.models.generate_content(
-                model=model_name,
-                contents=contents,
-                config=config
-            )
-
-            if response and response.text:
-                raw_text = response.text.strip()
-
-                # Step 1: Clean stray Unicode characters outside permitted Tamil/English range
-                if language == "ta":
-                    raw_text = clean_tamil_text(raw_text)
-
-                # Step 2: Ensure the medical disclaimer appears strictly once per reply
-                is_followup = bool(history and len(history) > 1)
-                final_text = normalize_single_disclaimer(raw_text, language, is_followup=is_followup)
-                return final_text
-            else:
-                logger.warning("Model %s returned empty response.", model_name)
-                continue
-
-        except APIError as api_err:
-            last_error = api_err
-            logger.warning("Gemini API Error (%s) on model %s: %s", api_err.code, model_name, api_err.message)
-            if api_err.code in (404, 429, 503):
-                continue
-            return _fallback_error_message(language)
-
-        except Exception as e:
-            last_error = e
-            logger.error("Unexpected error with model %s: %s", model_name, str(e))
-            continue
-
-    # If all candidate models failed
-    logger.error("All Gemini model candidates failed. Last error: %s", str(last_error))
-    if isinstance(last_error, APIError) and last_error.code == 429:
-        if language == "en":
-            return (
-                "⏳ The AI service is currently busy (rate limit reached). "
-                "Please wait a minute and try again.\n\n"
-                "⚠️ Disclaimer: This is educational information only. Please consult your physician for medical advice."
-            )
-        return (
-            "⏳ AI சேவை தற்போது மிகவும் பிஸியாக உள்ளது (Rate limit). "
-            "தயவுசெய்து ஒரு நிமிடம் கழித்து மீண்டும் முயற்சிக்கவும்.\n\n"
-            "⚠️ குறிப்பு: இது விழிப்புணர்வு தகவல் மட்டுமே. மருத்துவ ஆலோசனைக்கு உங்கள் மருத்துவரை அணுகவும்."
-        )
+        is_followup = bool(history and len(history) > 1)
+        return normalize_single_disclaimer(raw_text, language, is_followup=is_followup)
 
     return _fallback_error_message(language)
 
@@ -355,25 +269,16 @@ def generate_rag_llm_response(
         except TypeError:
             return custom_llm_fn(prompt, language)
 
-    # Call Gemini API
-    api_key = Config.GEMINI_API_KEY
-    if not api_key or api_key == "your_api_key_here":
-        return _fallback_error_message(language)
-
-    client = genai.Client(api_key=api_key)
-    model_name = Config.GEMINI_MODEL or "gemini-3.5-flash"
-
-    try:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
-        if response and response.text:
-            text = response.text.strip()
-            if language == "ta":
-                text = clean_tamil_text(text)
-            return text
-    except Exception as e:
-        logger.error("Error in generate_rag_llm_response: %s", str(e))
+    # Dispatches through LLMProvider (Gemini -> Claude -> Grok fallback)
+    output = dispatch_llm_request(
+        prompt=prompt,
+        system_instruction=RAG_SYSTEM_PROMPT,
+        history=compact_history,
+        language=language
+    )
+    if output:
+        if language == "ta":
+            output = clean_tamil_text(output)
+        return output
 
     return _fallback_error_message(language)
