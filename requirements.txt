@@ -6,3 +6,4 @@ gtts
 python-dotenv
 pytest
 gunicorn
+pypdf

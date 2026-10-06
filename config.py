@@ -19,3 +19,8 @@ class Config:
     # Text-to-Speech voices
     TAMIL_VOICE = "ta-IN-PallaviNeural"
     ENGLISH_VOICE = "en-IN-NeerjaNeural"
+
+    # Vector RAG & Knowledge Base configurations
+    EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "gemini").lower()
+    RAG_TOP_K = int(os.getenv("RAG_TOP_K", 3))
+    RAG_MIN_SCORE = float(os.getenv("RAG_MIN_SCORE", 0.45))

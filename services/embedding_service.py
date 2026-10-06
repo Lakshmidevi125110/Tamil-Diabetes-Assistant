@@ -29,27 +29,8 @@ def get_gemini_client():
         return None
 
 
-def get_embedding(
-    text: str,
-    client: Optional[Any] = None,
-    custom_embed_fn: Optional[Callable[[str], List[float]]] = None
-) -> Optional[List[float]]:
-    """
-    Computes text embedding vector.
-    - If custom_embed_fn is provided (e.g., in unit tests), uses it.
-    - Otherwise calls Gemini Embedding API.
-    - If API key is missing or call fails, returns None without crashing.
-    """
-    if not text or not text.strip():
-        return None
-
-    if custom_embed_fn:
-        try:
-            return custom_embed_fn(text)
-        except Exception as e:
-            logger.error("Custom embedding function error: %s", str(e))
-            return None
-
+def _embed_gemini(text: str, client: Optional[Any] = None) -> Optional[List[float]]:
+    """Helper to embed text using Google Gemini Embedding API."""
     active_client = client or get_gemini_client()
     if not active_client:
         logger.warning("Gemini API key is not configured. Cannot generate live embedding.")
@@ -71,6 +52,66 @@ def get_embedding(
 
     logger.error("All Gemini embedding models failed.")
     return None
+
+
+def embed(
+    texts: Any,
+    provider: Optional[str] = None,
+    custom_embed_fn: Optional[Callable[[str], Optional[List[float]]]] = None
+) -> Any:
+    """
+    Unified lightweight embedding interface:
+    - Accepts a single string or a list of strings.
+    - Reads EMBEDDING_PROVIDER from Config (default: 'gemini').
+    - Allows switching embedding providers without changing RAG retrieval code.
+    - If custom_embed_fn is provided (e.g., in unit tests), uses it.
+    - Returns single vector for str, or list of vectors for List[str].
+    """
+    if isinstance(texts, str):
+        is_single = True
+        text_list = [texts]
+    elif isinstance(texts, (list, tuple)):
+        is_single = False
+        text_list = list(texts)
+    else:
+        return None
+
+    active_provider = (provider or getattr(Config, "EMBEDDING_PROVIDER", "gemini")).lower()
+    results: List[Optional[List[float]]] = []
+
+    for item in text_list:
+        if not item or not str(item).strip():
+            results.append(None)
+            continue
+
+        item_str = str(item)
+
+        if custom_embed_fn:
+            try:
+                results.append(custom_embed_fn(item_str))
+            except Exception as e:
+                logger.error("Custom embedding function error: %s", str(e))
+                results.append(None)
+            continue
+
+        if active_provider == "gemini":
+            results.append(_embed_gemini(item_str))
+        else:
+            logger.warning("Unknown embedding provider '%s', defaulting to Gemini.", active_provider)
+            results.append(_embed_gemini(item_str))
+
+    return results[0] if is_single else results
+
+
+def get_embedding(
+    text: str,
+    client: Optional[Any] = None,
+    custom_embed_fn: Optional[Callable[[str], Optional[List[float]]]] = None
+) -> Optional[List[float]]:
+    """
+    Computes text embedding vector. Backwards compatibility wrapper for embed(text).
+    """
+    return embed(text, custom_embed_fn=custom_embed_fn)
 
 
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
@@ -172,19 +213,26 @@ class VectorStore:
     def search(
         self,
         query: str,
-        k: int = 3,
+        k: Optional[int] = None,
+        min_score: Optional[float] = None,
         embed_fn: Optional[Callable[[str], Optional[List[float]]]] = None,
         topic_filter: Optional[str] = None,
+        source_filter: Optional[str] = None,
         language_filter: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Performs top-k cosine similarity search.
+        Filters by topic, source, and language.
+        Applies top-k (from Config.RAG_TOP_K) and cutoff (from Config.RAG_MIN_SCORE).
         Returns a list of match dicts: {"chunk": metadata_dict, "score": float}
         """
         if not self.entries or not query or not query.strip():
             return []
 
-        query_vec = get_embedding(query, custom_embed_fn=embed_fn)
+        effective_k = k if k is not None else getattr(Config, "RAG_TOP_K", 3)
+        effective_min_score = min_score if min_score is not None else (getattr(Config, "RAG_MIN_SCORE", 0.45) if k is None else 0.0)
+
+        query_vec = embed(query, custom_embed_fn=embed_fn)
         if query_vec is None:
             logger.warning("Could not generate query embedding. Returning empty search results.")
             return []
@@ -194,12 +242,20 @@ class VectorStore:
         for entry in self.entries:
             meta = entry.get("metadata", {})
 
-            # Optional topic and language filtering
+            # Topic filtering
             if topic_filter:
                 entry_topic = meta.get("topic", "").strip().lower()
                 if entry_topic != topic_filter.strip().lower():
                     continue
 
+            # Source filtering
+            if source_filter:
+                entry_source = meta.get("source", "").strip().lower()
+                s_filter = source_filter.strip().lower()
+                if s_filter != entry_source and s_filter not in entry_source:
+                    continue
+
+            # Language filtering
             if language_filter:
                 entry_lang = meta.get("language", "").strip().lower()
                 if entry_lang != language_filter.strip().lower():
@@ -207,12 +263,17 @@ class VectorStore:
 
             vec = entry.get("vector", [])
             score = cosine_similarity(query_vec, vec)
+
+            # Score cutoff
+            if score < effective_min_score:
+                continue
+
             scored_results.append((score, meta))
 
         # Sort descending by cosine similarity score
         scored_results.sort(key=lambda x: x[0], reverse=True)
 
-        top_k = scored_results[:k]
+        top_k = scored_results[:effective_k]
         return [{"chunk": meta, "score": round(score, 4)} for score, meta in top_k]
 
     def count(self) -> int:

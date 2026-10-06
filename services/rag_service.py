@@ -3,9 +3,16 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple, Callable
 from config import Config
 from services.knowledge_base import KnowledgeChunk
-from services.embedding_service import VectorStore, get_embedding, get_gemini_client
-from services.safety_validator import validate_ai_reply
-from services.ai_service import generate_ai_response, clean_tamil_text, normalize_single_disclaimer
+from services.embedding_service import VectorStore, embed, get_embedding, get_gemini_client
+from services.guardrails import check_emergency_symptoms, check_crisis_or_self_harm
+from services.safety_validator import check_medication_change_query, validate_ai_reply
+from services.ai_service import (
+    generate_ai_response,
+    generate_rag_llm_response,
+    clean_tamil_text,
+    normalize_single_disclaimer,
+    RAG_SYSTEM_PROMPT
+)
 
 logger = logging.getLogger(__name__)
 
@@ -186,29 +193,89 @@ def format_sources_list(chunks: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     return sources
 
 
+def is_personal_query(text: str) -> bool:
+    """
+    Detects if a query contains personal medical readings, metrics, or personal statements
+    that must never be stored in the shared query cache or indexed.
+    """
+    patterns = [
+        r"\b(?:my|i am|i have|me|mine|என்|என்னுடைய|எனக்கு)\b",
+        r"\b(?:fasting|post\s*meal|random|sugar|glucose|மதிப்பு|அளவு)\s*(?:is|level)?\s*\d{2,3}\b",
+        r"\b\d{2,3}\s*(?:mg/dl|mgdl)\b",
+        r"\b(?:took|take|injected|dose|units?)\s*\d+\b"
+    ]
+    t = text.lower()
+    return any(re.search(p, t) for p in patterns)
+
+
+def detect_language(text: str, fallback_lang: str = "ta") -> str:
+    """Detects if text contains Tamil Unicode script or English characters."""
+    if re.search(r"[\u0B80-\u0BFF]", text):
+        return "ta"
+    if re.search(r"[a-zA-Z]", text):
+        return "en"
+    return fallback_lang
+
+
 def generate_rag_response(
     user_message: str,
     language: str = "ta",
     history: Optional[List[Dict[str, str]]] = None,
     vector_store: Optional[VectorStore] = None,
     custom_embed_fn: Optional[Callable[[str], Optional[List[float]]]] = None,
-    custom_llm_fn: Optional[Callable[[str, str], str]] = None
+    custom_llm_fn: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
-    Full RAG pipeline:
-    1. Check query cache
-    2. Embed query & vector search
-    3. Re-rank (relevance first, then authority/freshness boost, reject below threshold)
-    4. If nothing relevant retrieved -> return safe refusal
-    5. If relevant -> build compact context & call LLM
-    6. Safety validator & tone validator audit
-    7. Return formatted reply with deduplicated sources
+    Full RAG pipeline in strict retrieval order:
+    1. Emergency check (urgent symptoms, self-harm crisis, medication adjustment)
+    2. Language detection (Tamil script detection vs English)
+    3. Query normalization (clean spacing, casing, non-personal cache lookup)
+    4. Embedding (embed interface)
+    5. Search (vector store search with topic/source/language filters & cutoff)
+    6. Remove duplicate or irrelevant chunks (deduplication & relevance filter)
+    7. Pass only relevant chunks to LLM (grounded with RAG_SYSTEM_PROMPT and compact history)
     """
-    clean_query = user_message.strip()
-    cache_key = (clean_query.lower(), language)
+    # 1. Emergency check
+    emergency_reply = check_emergency_symptoms(user_message, language=language)
+    if emergency_reply:
+        logger.warning("Emergency detected in retrieval flow.")
+        return {
+            "status": "emergency",
+            "reply": emergency_reply,
+            "sources": [],
+            "rag_applied": False
+        }
 
-    # 1. Cache hit check
-    if cache_key in _QUERY_CACHE:
+    crisis_reply = check_crisis_or_self_harm(user_message, language=language)
+    if crisis_reply:
+        logger.warning("Crisis/self-harm detected in retrieval flow.")
+        return {
+            "status": "crisis_support",
+            "reply": crisis_reply,
+            "sources": [],
+            "rag_applied": False
+        }
+
+    med_reply = check_medication_change_query(user_message, language=language)
+    if med_reply:
+        logger.info("Medication change query intercepted in retrieval flow.")
+        return {
+            "status": "medication_notice",
+            "reply": med_reply,
+            "sources": [],
+            "rag_applied": False
+        }
+
+    # 2. Language detection
+    active_lang = language or detect_language(user_message, fallback_lang="ta")
+
+    # 3. Query normalization
+    clean_query = re.sub(r"\s+", " ", user_message).strip()
+    normalized_query = clean_query.lower()
+    cache_key = (normalized_query, active_lang)
+
+    is_personal = is_personal_query(user_message)
+    if not is_personal and cache_key in _QUERY_CACHE:
         logger.info("Serving query from RAG cache: %s", clean_query[:40])
         return _QUERY_CACHE[cache_key]
 
@@ -217,74 +284,91 @@ def generate_rag_response(
     # Fallback to standard AI response if store is empty
     if store.is_empty():
         logger.info("Vector index is empty. Falling back to standard AI generation.")
-        fallback_reply = generate_ai_response(clean_query, language=language, history=history)
-        _, safe_fallback, _ = validate_ai_reply(fallback_reply, language=language)
+        fallback_reply = generate_ai_response(clean_query, language=active_lang, history=history)
+        _, safe_fallback, _ = validate_ai_reply(fallback_reply, language=active_lang)
         result = {
             "status": "success",
-            "reply": validate_tone(safe_fallback, language=language),
+            "reply": validate_tone(safe_fallback, language=active_lang),
             "sources": [],
             "rag_applied": False
         }
         return result
 
     try:
-        # 2. Vector search (fetch candidate pool)
-        candidates = store.search(clean_query, k=8, embed_fn=custom_embed_fn)
+        # 4. Embedding
+        query_vec = embed(clean_query, custom_embed_fn=custom_embed_fn)
 
-        # 3. Re-rank (relevance first, boost authority 1 and recency, reject below threshold)
-        top_chunks = rerank_chunks(candidates, threshold=RELEVANCE_THRESHOLD, top_k=2)
+        # 5. Search
+        top_k_val = getattr(Config, "RAG_TOP_K", 3)
+        min_score_val = getattr(Config, "RAG_MIN_SCORE", RELEVANCE_THRESHOLD)
+        candidates = store.search(
+            query=clean_query,
+            k=max(top_k_val * 2, 6),
+            min_score=min_score_val,
+            embed_fn=custom_embed_fn
+        )
 
-        # 4. Safe refusal if nothing relevant is retrieved
+        # 6. Remove duplicate or irrelevant chunks
+        seen_hashes: Set[str] = set()
+        unique_candidates: List[Dict[str, Any]] = []
+        for c in candidates:
+            meta = c.get("chunk", {})
+            h = meta.get("content_hash") or meta.get("chunk_id")
+            if h and h in seen_hashes:
+                continue
+            seen_hashes.add(h)
+            if c.get("score", 0.0) >= min_score_val:
+                unique_candidates.append(c)
+
+        # Re-rank (relevance first, then authority/recency boost)
+        top_chunks = rerank_chunks(unique_candidates, threshold=min_score_val, top_k=top_k_val)
+
+        # 7. Pass only relevant chunks to LLM
         if not top_chunks:
             logger.info("No relevant chunks passed threshold for query: %s", clean_query[:40])
-            refusal_text = SAFE_INSUFFICIENT_INFO_TA if language == "ta" else SAFE_INSUFFICIENT_INFO_EN
-            disclaimer = normalize_single_disclaimer(refusal_text, language=language)
+            refusal_text = SAFE_INSUFFICIENT_INFO_TA if active_lang == "ta" else SAFE_INSUFFICIENT_INFO_EN
+            disclaimer = normalize_single_disclaimer(refusal_text, language=active_lang)
             result = {
                 "status": "insufficient_info",
                 "reply": disclaimer,
                 "sources": [],
                 "rag_applied": False
             }
-            # Cache refusal for this query
-            _QUERY_CACHE[cache_key] = result
+            if not is_personal:
+                _QUERY_CACHE[cache_key] = result
             return result
 
-        # 5. Build compact context and call primary LLM
-        prompt = build_rag_prompt(clean_query, top_chunks, language=language)
-        sources_list = format_sources_list(top_chunks)
+        # Format context excerpts
+        context_blocks = []
+        for idx, c in enumerate(top_chunks, 1):
+            meta = c.get("chunk", {})
+            title = meta.get("title", f"Document {idx}")
+            source = meta.get("source", "Health Organization")
+            content = meta.get("content", "")
+            context_blocks.append(f"--- Context Excerpt {idx} [{title} | {source}] ---\n{content[:800].strip()}")
+        retrieved_context_str = "\n\n".join(context_blocks)
 
-        if custom_llm_fn:
-            raw_reply = custom_llm_fn(prompt, language)
-        else:
-            client = get_gemini_client()
-            if not client:
-                logger.warning("Gemini client unavailable for RAG prompt.")
-                fallback_reply = generate_ai_response(clean_query, language=language, history=history)
-                return {
-                    "status": "success",
-                    "reply": fallback_reply,
-                    "sources": sources_list,
-                    "rag_applied": False
-                }
+        # Call LLM function accepting (query, retrieved_context, conversation_history, language)
+        raw_reply = generate_rag_llm_response(
+            query=clean_query,
+            retrieved_context=retrieved_context_str,
+            conversation_history=history,
+            language=active_lang,
+            custom_llm_fn=custom_llm_fn
+        )
 
-            model_name = Config.GEMINI_MODEL or "gemini-3.5-flash"
-            resp = client.models.generate_content(
-                model=model_name,
-                contents=prompt
-            )
-            raw_reply = resp.text.strip() if resp and resp.text else ""
-
-        if language == "ta":
+        if active_lang == "ta":
             raw_reply = clean_tamil_text(raw_reply)
 
-        # 6. Safety Validator & Tone Validator
-        _, safe_reply, violation = validate_ai_reply(raw_reply, language=language)
+        # Safety Validator & Tone Validator audits
+        _, safe_reply, violation = validate_ai_reply(raw_reply, language=active_lang)
         if violation:
             logger.warning("RAG reply sanitized by safety validator: %s", violation)
 
-        calm_reply = validate_tone(safe_reply, language=language)
-        final_reply = normalize_single_disclaimer(calm_reply, language=language)
+        calm_reply = validate_tone(safe_reply, language=active_lang)
+        final_reply = normalize_single_disclaimer(calm_reply, language=active_lang)
 
+        sources_list = format_sources_list(top_chunks)
         result = {
             "status": "success",
             "reply": final_reply,
@@ -292,12 +376,12 @@ def generate_rag_response(
             "rag_applied": True
         }
 
-        # Cache valid response
-        if len(_QUERY_CACHE) >= MAX_CACHE_SIZE:
-            # Evict first inserted key
-            first_key = next(iter(_QUERY_CACHE))
-            del _QUERY_CACHE[first_key]
-        _QUERY_CACHE[cache_key] = result
+        # Cache only non-personal queries
+        if not is_personal:
+            if len(_QUERY_CACHE) >= MAX_CACHE_SIZE:
+                first_key = next(iter(_QUERY_CACHE))
+                del _QUERY_CACHE[first_key]
+            _QUERY_CACHE[cache_key] = result
 
         return result
 

@@ -299,3 +299,81 @@ def _fallback_error_message(language: str) -> str:
         "தயவுசெய்து உங்கள் இணைய இணைப்பைச் சரிபார்க்கவும் அல்லது சிறிது நேரம் கழித்து மீண்டும் முயற்சிக்கவும்.\n\n"
         "⚠️ குறிப்பு: இது விழிப்புணர்வு தகவல் மட்டுமே. மருத்துவ ஆலோசனைக்கு உங்கள் மருத்துவரை அணுகவும்."
     )
+
+
+# System prompt strictly grounded on verified clinical context
+RAG_SYSTEM_PROMPT = (
+    "You are an educational diabetes information assistant. "
+    "Use the supplied trusted medical context as the primary factual grounding. "
+    "Do not diagnose, prescribe medication, recommend medication dosage changes, "
+    "or replace a healthcare professional."
+)
+
+
+def generate_rag_llm_response(
+    query: str,
+    retrieved_context: str,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    language: str = "ta",
+    custom_llm_fn: Optional[Any] = None
+) -> str:
+    """
+    RAG LLM generation function:
+    - Accepts (query, retrieved_context, conversation_history, language).
+    - Grounds response on trusted retrieved context using RAG_SYSTEM_PROMPT.
+    - Keeps only the last few messages of history to minimize prompt footprint.
+    - Calls Gemini (or custom_llm_fn when provided in tests).
+    """
+    # Keep only the last few turns of history to keep prompt small
+    compact_history = (conversation_history or [])[-4:]
+    history_lines = []
+    for item in compact_history:
+        if isinstance(item, dict) and "text" in item and "role" in item:
+            role_label = "User" if item["role"] == "user" else "Assistant"
+            history_lines.append(f"{role_label}: {item['text'][:250].strip()}")
+    history_text = "\n".join(history_lines) if history_lines else "None"
+
+    # Assemble structured RAG prompt
+    lang_instruction = (
+        "தயவுசெய்து எளிய, கனிவான தமிழில் விழிப்புணர்வு தகவல்களை வழங்கவும்."
+        if language == "ta" else
+        "Please provide clear, empathetic, educational guidance in English."
+    )
+
+    prompt = (
+        f"System: {RAG_SYSTEM_PROMPT}\n\n"
+        f"[TRUSTED MEDICAL CONTEXT]\n{retrieved_context}\n\n"
+        f"[RECENT CONVERSATION HISTORY]\n{history_text}\n\n"
+        f"User Question: {query}\n\n"
+        f"Guidance: {lang_instruction}\n\n"
+        f"Educational Answer:"
+    )
+
+    if custom_llm_fn:
+        try:
+            return custom_llm_fn(query, retrieved_context, compact_history, language)
+        except TypeError:
+            return custom_llm_fn(prompt, language)
+
+    # Call Gemini API
+    api_key = Config.GEMINI_API_KEY
+    if not api_key or api_key == "your_api_key_here":
+        return _fallback_error_message(language)
+
+    client = genai.Client(api_key=api_key)
+    model_name = Config.GEMINI_MODEL or "gemini-3.5-flash"
+
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt
+        )
+        if response and response.text:
+            text = response.text.strip()
+            if language == "ta":
+                text = clean_tamil_text(text)
+            return text
+    except Exception as e:
+        logger.error("Error in generate_rag_llm_response: %s", str(e))
+
+    return _fallback_error_message(language)
