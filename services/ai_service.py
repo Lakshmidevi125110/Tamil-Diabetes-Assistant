@@ -27,6 +27,61 @@ def clean_tamil_text(text: str) -> str:
     """
     return ALLOWED_TAMIL_CHARS_PATTERN.sub('', text)
 
+
+def enforce_bilingual_medical_terms(text: str, language: str = "ta") -> str:
+    """
+    Ensures key diabetes terms appear with Tamil and English together in Tamil answers:
+    - Hypoglycemia (குறைந்த இரத்த சர்க்கரை)
+    - Hyperglycemia (அதிக இரத்த சர்க்கரை)
+    - HbA1c
+    - Blood glucose
+    - Insulin
+    """
+    if language != "ta" or not text:
+        return text
+
+    result = text
+
+    # 1. Hypoglycemia (குறைந்த இரத்த சர்க்கரை)
+    if not re.search(r"(?:Hypoglycemia\s*\(\s*குறைந்த\s*இரத்த\s*சர்க்கரை\s*\)|குறைந்த\s*இரத்த\s*சர்க்கரை\s*\(\s*Hypoglycemia\s*\))", result, re.IGNORECASE):
+        if re.search(r"ஹைபோகிளைசீமியா", result):
+            result = re.sub(r"ஹைபோகிளைசீமியா", "Hypoglycemia (குறைந்த இரத்த சர்க்கரை)", result)
+        elif re.search(r"\bHypoglycemia\b", result, re.IGNORECASE):
+            result = re.sub(r"(?i)\bHypoglycemia\b", "Hypoglycemia (குறைந்த இரத்த சர்க்கரை)", result)
+        elif re.search(r"குறைந்த\s*இரத்த\s*சர்க்கரை", result):
+            result = re.sub(r"குறைந்த\s*இரத்த\s*சர்க்கரை", "Hypoglycemia (குறைந்த இரத்த சர்க்கரை)", result)
+
+    # 2. Hyperglycemia (அதிக இரத்த சர்க்கரை)
+    if not re.search(r"(?:Hyperglycemia\s*\(\s*அதிக\s*இரத்த\s*சர்க்கரை\s*\)|அதிக\s*இரத்த\s*சர்க்கரை\s*\(\s*Hyperglycemia\s*\))", result, re.IGNORECASE):
+        if re.search(r"ஹைபர்கிளைசீமியா", result):
+            result = re.sub(r"ஹைபர்கிளைசீமியா", "Hyperglycemia (அதிக இரத்த சர்க்கரை)", result)
+        elif re.search(r"\bHyperglycemia\b", result, re.IGNORECASE):
+            result = re.sub(r"(?i)\bHyperglycemia\b", "Hyperglycemia (அதிக இரத்த சர்க்கரை)", result)
+        elif re.search(r"அதிக\s*இரத்த\s*சர்க்கரை", result):
+            result = re.sub(r"அதிக\s*இரத்த\s*சர்க்கரை", "Hyperglycemia (அதிக இரத்த சர்க்கரை)", result)
+
+    # 3. HbA1c standard casing
+    result = re.sub(r"(?i)\bhba1c\b", "HbA1c", result)
+    result = re.sub(r"எச்பிஏ1சி", "HbA1c", result)
+
+    # 4. Blood glucose (keep with இரத்த சர்க்கரை)
+    if not re.search(r"\bBlood\s*glucose\b", result, re.IGNORECASE):
+        result = re.sub(
+            r"(?<!குறைந்த\s)(?<!அதிக\s)இரத்த\s*சர்க்கரை",
+            "இரத்த சர்க்கரை (Blood glucose)",
+            result,
+            count=1
+        )
+
+    # 5. Insulin (keep with இன்சுலின்)
+    if not re.search(r"(?:Insulin\s*\(\s*இன்சுலின்\s*\)|இன்சுலின்\s*\(\s*Insulin\s*\))", result, re.IGNORECASE):
+        if re.search(r"இன்சுலின்", result) and not re.search(r"\bInsulin\b", result, re.IGNORECASE):
+            result = re.sub(r"இன்சுலின்", "இன்சுலின் (Insulin)", result, count=1)
+        elif re.search(r"\bInsulin\b", result, re.IGNORECASE) and not re.search(r"இன்சுலின்", result):
+            result = re.sub(r"(?i)\bInsulin\b", "Insulin (இன்சுலின்)", result, count=1)
+
+    return result
+
 def normalize_single_disclaimer(text: str, language: str, is_followup: bool = False) -> str:
     """
     Ensures the medical disclaimer is cleanly integrated:
@@ -194,6 +249,7 @@ def generate_ai_response(
     if raw_text:
         if language == "ta":
             raw_text = clean_tamil_text(raw_text)
+            raw_text = enforce_bilingual_medical_terms(raw_text, language="ta")
 
         is_followup = bool(history and len(history) > 1)
         return normalize_single_disclaimer(raw_text, language, is_followup=is_followup)
@@ -220,7 +276,10 @@ RAG_SYSTEM_PROMPT = (
     "You are an educational diabetes information assistant. "
     "Use the supplied trusted medical context as the primary factual grounding. "
     "Do not diagnose, prescribe medication, recommend medication dosage changes, "
-    "or replace a healthcare professional."
+    "or replace a healthcare professional. "
+    "Never claim or suggest that any food, herb, diet, or home remedy cures, reverses completely, or eliminates diabetes. "
+    "In Tamil responses, always keep these medical terms with Tamil and English together: "
+    "Hypoglycemia (குறைந்த இரத்த சர்க்கரை), Hyperglycemia (அதிக இரத்த சர்க்கரை), HbA1c, Blood glucose, Insulin."
 )
 
 
@@ -249,9 +308,11 @@ def generate_rag_llm_response(
 
     # Assemble structured RAG prompt
     lang_instruction = (
-        "தயவுசெய்து எளிய, கனிவான தமிழில் விழிப்புணர்வு தகவல்களை வழங்கவும்."
+        "தயவுசெய்து எளிய, கனிவான தமிழில் விழிப்புணர்வு தகவல்களை வழங்கவும். "
+        "Hypoglycemia (குறைந்த இரத்த சர்க்கரை), Hyperglycemia (அதிக இரத்த சர்க்கரை), HbA1c, Blood glucose, Insulin ஆகிய சொற்களை தமிழும் ஆங்கிலமும் இணைத்து பயன்படுத்தவும். "
+        "எந்தவொரு உணவும் சர்க்கரை நோயை குணப்படுத்தும் என்று கூற வேண்டாம்."
         if language == "ta" else
-        "Please provide clear, empathetic, educational guidance in English."
+        "Please provide clear, empathetic, educational guidance in English. Never claim any food or herb cures diabetes."
     )
 
     prompt = (
@@ -265,9 +326,13 @@ def generate_rag_llm_response(
 
     if custom_llm_fn:
         try:
-            return custom_llm_fn(query, retrieved_context, compact_history, language)
+            res = custom_llm_fn(query, retrieved_context, compact_history, language)
         except TypeError:
-            return custom_llm_fn(prompt, language)
+            res = custom_llm_fn(prompt, language)
+        if language == "ta" and res:
+            res = clean_tamil_text(res)
+            res = enforce_bilingual_medical_terms(res, language="ta")
+        return res
 
     # Dispatches through LLMProvider (Gemini -> Claude -> Grok fallback)
     output = dispatch_llm_request(
@@ -279,6 +344,7 @@ def generate_rag_llm_response(
     if output:
         if language == "ta":
             output = clean_tamil_text(output)
+            output = enforce_bilingual_medical_terms(output, language="ta")
         return output
 
     return _fallback_error_message(language)

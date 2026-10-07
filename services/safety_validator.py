@@ -126,6 +126,25 @@ FALSE_REASSURANCE_PATTERNS_TA = [
     r"பயப்பட\s*எதுவுமே\s*இல்லை"
 ]
 
+# ============================================================================
+# 5. Food, Herb, or Home Remedy Cure Claims Interceptor
+# ============================================================================
+CURE_CLAIM_PATTERNS_EN = [
+    r"\b(?:cures?|curing|heals?|reverses?\s+completely|permanently\s+cures?|eliminates?)\s+(?:type\s*[12]\s+)?diabetes\b",
+    r"\b(?:food|herb|herbs|plant|vegetable|fruit|remedy|home\s+remedy|diet|bitter\s*gourd|karela|fenugreek|neem|cinnamon)\s+(?:can|will|to)?\s*(?:cure|permanently\s*reverse|heal)\s+(?:type\s*[12]\s+)?diabetes\b",
+    r"\bdiabetes\s+can\s+be\s+(?:cured|healed|completely\s+reversed)\s+by\b",
+    r"\bcomplete\s+cure\s+for\s+diabetes\b",
+    r"\bcure\s+(?:your\s+)?diabetes\b"
+]
+
+CURE_CLAIM_PATTERNS_TA = [
+    r"(?:சர்க்கரை\s*நோய(?:ை|ை)?|நீரிழிவை)\s*(?:முழுமையாக\s*)?(?:குணப்படுத்தும்|தீர்க்கும்|வேரறுக்கும்|போக்கும்|நீக்கும்)",
+    r"(?:பாகற்காய்|வெந்தயம்|வேம்பு|மூலிகை|உணவு|வீட்டு\s*வைத்தியம்)\s*.*(?:சர்க்கரை\s*நோயை\s*குணப்படுத்தும்|சர்க்கரை\s*நோய்\s*குணமாகும்)",
+    r"(?:சர்க்கரை\s*நோய்|நீரிழிவு)\s*முற்றிலும்\s*(?:குணமாகும்|குணப்படுத்த\s*முடியும்)",
+    r"(?:சர்க்கரை\s*நோய்க்கு\s*முழுமையான\s*தீர்வு|சர்க்கரை\s*நோய்\s*குணமாக)"
+]
+
+
 def validate_ai_reply(reply_text: str, language: str = "ta") -> Tuple[bool, str, Optional[str]]:
     """
     Audits the generated reply against clinical safety boundaries:
@@ -133,6 +152,7 @@ def validate_ai_reply(reply_text: str, language: str = "ta") -> Tuple[bool, str,
     2. No medication/dosage prescription or recommendation to alter/stop
     3. No individualized treatment plan
     4. No false reassurance
+    5. No claims that any food, herb, or home remedy cures diabetes
 
     Returns: (is_safe: bool, validated_text: str, violation_reason: Optional[str])
     If unsafe, returns a safe, helpful educational fallback.
@@ -191,8 +211,38 @@ def validate_ai_reply(reply_text: str, language: str = "ta") -> Tuple[bool, str,
                 violation = "false_reassurance_ta"
                 break
 
+    # 5. Food / Herb / Home Remedy Cure Claims Check
+    if not violation:
+        for pat in CURE_CLAIM_PATTERNS_EN:
+            if re.search(pat, text_lower):
+                violation = "cure_claim_en"
+                break
+    if not violation:
+        for pat in CURE_CLAIM_PATTERNS_TA:
+            if re.search(pat, reply_text):
+                violation = "cure_claim_ta"
+                break
+
     if violation:
         logger.warning("Safety Validator triggered on AI response! Reason: %s", violation)
+        if violation.startswith("cure_claim"):
+            if lang == "en":
+                safe_fallback = (
+                    "No food, herb, or home remedy can cure diabetes. While balanced nutrition, dietary fiber, "
+                    "and regular physical activity support healthy blood glucose management, diabetes is a chronic metabolic condition "
+                    "that cannot be cured or eliminated by home remedies or foods. Individual medical management should always be "
+                    "discussed with a qualified healthcare professional.\n\n"
+                    "⚠️ Disclaimer: This is educational information only. Please consult your physician for medical advice."
+                )
+            else:
+                safe_fallback = (
+                    "எந்தவொரு உணவோ, மூலிகையோ அல்லது வீட்டு வைத்தியமோ சர்க்கரை நோயை முழுமையாகக் குணப்படுத்த முடியாது. "
+                    "நார்ச்சத்து நிறைந்த உணவுகள் மற்றும் உடற்பயிற்சி இரத்த சர்க்கரை அளவை சீராகப் பராமரிக்க உதவ முடியுமே தவிர, "
+                    "நீரிழிவு நோயை வீட்டு வைத்தியங்களால் குணப்படுத்த இயலாது. முறையான மருத்துவ வழிகாட்டலுக்கு தகுதிவாய்ந்த மருத்துவரை அணுகவும்.\n\n"
+                    "⚠️ குறிப்பு: இது விழிப்புணர்வு தகவல் மட்டுமே. மருத்துவ ஆலோசனைக்கு உங்கள் மருத்துவரை அணுகவும்."
+                )
+            return False, safe_fallback, violation
+
         if lang == "en":
             safe_fallback = (
                 "Blood sugar and metabolic health vary individually based on daily lifestyle, nutrition, and medical history. "

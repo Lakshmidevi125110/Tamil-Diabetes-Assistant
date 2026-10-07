@@ -10,6 +10,7 @@ from services.ai_service import (
     generate_ai_response,
     generate_rag_llm_response,
     clean_tamil_text,
+    enforce_bilingual_medical_terms,
     normalize_single_disclaimer,
     RAG_SYSTEM_PROMPT
 )
@@ -24,16 +25,28 @@ _QUERY_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
 MAX_CACHE_SIZE = 150
 
 SAFE_INSUFFICIENT_INFO_EN = (
-    "I don't have enough reliable information to answer that safely. "
-    "I can provide general diabetes education on the topic or help you organize "
-    "information to discuss with a healthcare professional."
+    "I don't have enough trusted information in my knowledge base to answer that safely. "
+    "Please consult a qualified healthcare professional."
 )
 
 SAFE_INSUFFICIENT_INFO_TA = (
-    "பாதுகாப்பாக பதிலளிக்க என்னிடம் போதுமான நம்பகமான மருத்துவ தகவல்கள் இல்லை. "
-    "இந்த தலைப்பில் பொதுவான நீரிழிவு விழிப்புணர்வை வழங்க முடியும் அல்லது உங்கள் மருத்துவரிடம் "
-    "விவாதிக்க தகவல்களை ஒழுங்கமைக்க உதவ முடியும்."
+    "பாதுகாப்பாக பதிலளிக்க எனது அறிவுத் தளத்தில் போதுமான நம்பகமான தகவல்கள் இல்லை. "
+    "தயவுசெய்து தகுதிவாய்ந்த மருத்துவ நிபுணரை அணுகவும்."
 )
+
+GREETING_PATTERNS = [
+    r"^\s*(?:hi|hello|hey|good\s+(?:morning|afternoon|evening|day)|greetings)\b",
+    r"^\s*(?:வணக்கம்|வணக்கங்க|காலை\s*வணக்கம்|மாலை\s*வணக்கம்|நலமா|எப்படி\s*இருக்கீங்க|ஹலோ|ஹாய்)(?:\s|[,\.!?]|\b|$)",
+    r"^\s*(?:who\s+are\s+you|what\s+can\s+you\s+do|tell\s+me\s+about\s+yourself)\b",
+    r"^\s*(?:நீ\s*யார்|நீங்க\s*யார்|நீங்கள்\s*யார்|உன்னால்\s*என்ன\s*செய்ய\s*முடியும்)(?:\s|[,\.!?]|\b|$)",
+    r"^\s*(?:thanks?|thank\s+you)\b",
+    r"^\s*(?:நன்றி)(?:\s|[,\.!?]|\b|$)",
+]
+
+def is_greeting_or_conversational(text: str) -> bool:
+    """Detects whether a query is a greeting or general pleasantry (non-medical)."""
+    t = text.strip().lower()
+    return any(re.search(p, t, re.IGNORECASE) for p in GREETING_PATTERNS)
 
 # Tone softening dictionary for calm, non-judgmental healthcare communication
 TONE_REPLACEMENTS_EN = [
@@ -279,22 +292,42 @@ def generate_rag_response(
         logger.info("Serving query from RAG cache: %s", clean_query[:40])
         return _QUERY_CACHE[cache_key]
 
-    store = vector_store or VectorStore()
-
-    # Fallback to standard AI response if store is empty
-    if store.is_empty():
-        logger.info("Vector index is empty. Falling back to standard AI generation.")
-        if custom_llm_fn:
-            fallback_reply = custom_llm_fn(clean_query, "", history or [], active_lang)
-        else:
-            fallback_reply = generate_ai_response(clean_query, language=active_lang, history=history)
-        _, safe_fallback, _ = validate_ai_reply(fallback_reply, language=active_lang)
+    # Greeting / General conversation check (never show sources for greetings)
+    if is_greeting_or_conversational(clean_query):
+        logger.info("Conversational greeting detected: %s", clean_query[:40])
+        greeting_reply = (
+            "வணக்கம்! நான் உங்கள் நீரிழிவு கல்வி உதவியாளர். "
+            "நீரிழிவு விழிப்புணர்வு, ஆரோக்கியமான உணவு முறை, உடற்பயிற்சி மற்றும் இரத்த சர்க்கரை (Blood glucose) கண்காணிப்பு குறித்த "
+            "பொதுவான தகவல்களை நம்பகமான வழிகாட்டல்களின்படி பகிர்ந்து கொள்ள முடியும். இன்று நான் உங்களுக்கு எவ்வாறு உதவலாம்?"
+            if active_lang == "ta" else
+            "Hello! I am your educational diabetes information assistant. "
+            "I can provide general educational guidance on diabetes awareness, healthy nutrition, physical activity, "
+            "and blood glucose monitoring based on trusted health sources. How can I assist you today?"
+        )
+        final_greeting = normalize_single_disclaimer(greeting_reply, language=active_lang)
         result = {
             "status": "success",
-            "reply": validate_tone(safe_fallback, language=active_lang),
+            "reply": final_greeting,
             "sources": [],
             "rag_applied": False
         }
+        return result
+
+    store = vector_store or VectorStore()
+
+    # If store is empty, top score is 0.0 (below RAG_MIN_SCORE) -> do not call LLM for medical answers
+    if store.is_empty():
+        logger.info("Vector index is empty (score 0.0 < RAG_MIN_SCORE). Returning insufficient info fallback without calling LLM.")
+        refusal_text = SAFE_INSUFFICIENT_INFO_TA if active_lang == "ta" else SAFE_INSUFFICIENT_INFO_EN
+        disclaimer = normalize_single_disclaimer(refusal_text, language=active_lang)
+        result = {
+            "status": "insufficient_info",
+            "reply": disclaimer,
+            "sources": [],
+            "rag_applied": False
+        }
+        if not is_personal:
+            _QUERY_CACHE[cache_key] = result
         return result
 
     try:
@@ -327,8 +360,9 @@ def generate_rag_response(
         top_chunks = rerank_chunks(unique_candidates, threshold=min_score_val, top_k=top_k_val)
 
         # 7. Pass only relevant chunks to LLM
+        # If top retrieval scores fall below RAG_MIN_SCORE, do not call the LLM for a medical answer
         if not top_chunks:
-            logger.info("No relevant chunks passed threshold for query: %s", clean_query[:40])
+            logger.info("No relevant chunks passed threshold (below RAG_MIN_SCORE) for query: %s", clean_query[:40])
             refusal_text = SAFE_INSUFFICIENT_INFO_TA if active_lang == "ta" else SAFE_INSUFFICIENT_INFO_EN
             disclaimer = normalize_single_disclaimer(refusal_text, language=active_lang)
             result = {
@@ -362,6 +396,7 @@ def generate_rag_response(
 
         if active_lang == "ta":
             raw_reply = clean_tamil_text(raw_reply)
+            raw_reply = enforce_bilingual_medical_terms(raw_reply, language="ta")
 
         # Safety Validator & Tone Validator audits
         _, safe_reply, violation = validate_ai_reply(raw_reply, language=active_lang)
@@ -371,6 +406,7 @@ def generate_rag_response(
         calm_reply = validate_tone(safe_reply, language=active_lang)
         final_reply = normalize_single_disclaimer(calm_reply, language=active_lang)
 
+        # Show trusted sources only for chunks actually passed to LLM
         sources_list = format_sources_list(top_chunks)
         result = {
             "status": "success",
