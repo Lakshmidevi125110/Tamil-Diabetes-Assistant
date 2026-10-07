@@ -347,7 +347,8 @@ def test_glucose_readings_isolated_from_vector_store_and_knowledge_base():
         user_message=personal_query,
         language="en",
         vector_store=store,
-        custom_embed_fn=fake_embed
+        custom_embed_fn=fake_embed,
+        custom_llm_fn=lambda q, c, h, l: "Isolated educational response."
     )
 
     # Assert cache does NOT contain the personal query

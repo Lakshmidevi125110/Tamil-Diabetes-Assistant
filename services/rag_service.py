@@ -284,7 +284,10 @@ def generate_rag_response(
     # Fallback to standard AI response if store is empty
     if store.is_empty():
         logger.info("Vector index is empty. Falling back to standard AI generation.")
-        fallback_reply = generate_ai_response(clean_query, language=active_lang, history=history)
+        if custom_llm_fn:
+            fallback_reply = custom_llm_fn(clean_query, "", history or [], active_lang)
+        else:
+            fallback_reply = generate_ai_response(clean_query, language=active_lang, history=history)
         _, safe_fallback, _ = validate_ai_reply(fallback_reply, language=active_lang)
         result = {
             "status": "success",

@@ -26,6 +26,13 @@ class KnowledgeDocument:
     language: str = "en"
     authority_level: int = 1
     content_hash: str = ""
+    version: int = 1
+    version_id: str = ""
+    last_verified_date: str = ""
+    ingestion_date: str = ""
+    source_name: str = ""
+    source_url: str = ""
+    document_type: str = ""
 
     def __post_init__(self):
         if not self.content_hash and self.content:
@@ -34,6 +41,32 @@ class KnowledgeDocument:
             self.authority_level = int(self.authority_level)
         except (ValueError, TypeError):
             self.authority_level = 1
+        try:
+            self.version = int(self.version)
+        except (ValueError, TypeError):
+            self.version = 1
+        if not self.version_id:
+            self.version_id = f"{self.id}_v{self.version}"
+        # Normalize and synchronize alias fields
+        if not self.source_name:
+            self.source_name = self.source
+        if not self.source:
+            self.source = self.source_name
+        if not self.source_url:
+            self.source_url = self.url
+        if not self.url:
+            self.url = self.source_url
+        if not self.document_type:
+            self.document_type = self.source_type
+        if not self.source_type:
+            self.source_type = self.document_type
+        if not self.last_verified_date:
+            self.last_verified_date = self.retrieved_at or ""
+        if not self.retrieved_at:
+            self.retrieved_at = self.last_verified_date
+        if not self.ingestion_date:
+            from datetime import datetime, timezone
+            self.ingestion_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 @dataclass
@@ -56,6 +89,37 @@ class KnowledgeChunk:
     language: str
     authority_level: int
     heading: str = ""
+    version: int = 1
+    version_id: str = ""
+    last_verified_date: str = ""
+    ingestion_date: str = ""
+    source_name: str = ""
+    source_url: str = ""
+    document_type: str = ""
+
+    def __post_init__(self):
+        try:
+            self.version = int(self.version)
+        except (ValueError, TypeError):
+            self.version = 1
+        if not self.version_id:
+            self.version_id = f"{self.doc_id}_v{self.version}"
+        if not self.source_name:
+            self.source_name = self.source
+        if not self.source:
+            self.source = self.source_name
+        if not self.source_url:
+            self.source_url = self.url
+        if not self.url:
+            self.url = self.source_url
+        if not self.document_type:
+            self.document_type = self.source_type
+        if not self.source_type:
+            self.source_type = self.document_type
+        if not self.last_verified_date:
+            self.last_verified_date = self.retrieved_at or ""
+        if not self.retrieved_at:
+            self.retrieved_at = self.last_verified_date
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -368,20 +432,36 @@ def parse_frontmatter_document(file_content: str, fallback_id: str) -> Optional[
 
     cleaned_content = clean_text(body_text)
     doc_id = metadata.get("id") or fallback_id
+    src = metadata.get("source_name") or metadata.get("source", "Unknown Source")
+    url = metadata.get("url") or metadata.get("source_url", "")
+    last_verified = metadata.get("last_verified_date") or metadata.get("retrieved_at", "Unknown")
+    pub_date = metadata.get("publication_date", "Unknown")
+    ingest_date = metadata.get("ingestion_date", "")
+    try:
+        version_val = int(metadata.get("version") or metadata.get("document_version") or 1)
+    except (ValueError, TypeError):
+        version_val = 1
+    doc_type = metadata.get("document_type") or metadata.get("source_type", "reference")
 
     return KnowledgeDocument(
         id=doc_id,
-        source=metadata.get("source", "Unknown Source"),
-        source_type=metadata.get("source_type", "reference"),
+        source=src,
+        source_type=doc_type,
         title=metadata.get("title", doc_id),
-        url=metadata.get("url", ""),
-        publication_date=metadata.get("publication_date", "Unknown"),
-        retrieved_at=metadata.get("retrieved_at", "Unknown"),
+        url=url,
+        publication_date=pub_date,
+        retrieved_at=last_verified,
         topic=metadata.get("topic", "general"),
         content=cleaned_content,
         language=metadata.get("language", "en"),
         authority_level=int(metadata.get("authority_level", 1)),
-        content_hash=hashlib.sha256(cleaned_content.encode("utf-8")).hexdigest()
+        content_hash=hashlib.sha256(cleaned_content.encode("utf-8")).hexdigest(),
+        version=version_val,
+        last_verified_date=last_verified,
+        ingestion_date=ingest_date,
+        source_name=src,
+        source_url=url,
+        document_type=doc_type
     )
 
 
@@ -405,20 +485,36 @@ def parse_json_document(file_content: str, fallback_id: str) -> List[KnowledgeDo
 
         cleaned_content = clean_text(content)
         item_id = item.get("id") or f"{fallback_id}_{idx}"
+        src = item.get("source_name") or item.get("source", "Unknown Source")
+        url = item.get("url") or item.get("source_url", "")
+        last_verified = item.get("last_verified_date") or item.get("retrieved_at", "Unknown")
+        pub_date = item.get("publication_date", "Unknown")
+        ingest_date = item.get("ingestion_date", "")
+        try:
+            version_val = int(item.get("version") or item.get("document_version") or 1)
+        except (ValueError, TypeError):
+            version_val = 1
+        doc_type = item.get("document_type") or item.get("source_type", "reference")
 
         doc = KnowledgeDocument(
             id=item_id,
-            source=item.get("source", "Unknown Source"),
-            source_type=item.get("source_type", "reference"),
+            source=src,
+            source_type=doc_type,
             title=item.get("title", item_id),
-            url=item.get("url", ""),
-            publication_date=item.get("publication_date", "Unknown"),
-            retrieved_at=item.get("retrieved_at", "Unknown"),
+            url=url,
+            publication_date=pub_date,
+            retrieved_at=last_verified,
             topic=item.get("topic", "general"),
             content=cleaned_content,
             language=item.get("language", "en"),
             authority_level=int(item.get("authority_level", 1)),
-            content_hash=hashlib.sha256(cleaned_content.encode("utf-8")).hexdigest()
+            content_hash=hashlib.sha256(cleaned_content.encode("utf-8")).hexdigest(),
+            version=version_val,
+            last_verified_date=last_verified,
+            ingestion_date=ingest_date,
+            source_name=src,
+            source_url=url,
+            document_type=doc_type
         )
         docs.append(doc)
 
@@ -488,6 +584,10 @@ class KnowledgeBase:
         self._chunk_content_hashes: Set[str] = set()
         # Track file state for change detection: {filepath: {"mtime": float, "hash": str, "doc_ids": List[str]}}
         self._file_registry: Dict[str, Dict[str, Any]] = {}
+        # Version tracking: preserves historical version records on modification/re-ingestion
+        self.version_history: Dict[str, List[KnowledgeDocument]] = {}
+        self.version_records: Dict[str, KnowledgeDocument] = {}
+        self.version_chunks: Dict[str, List[KnowledgeChunk]] = {}
 
     def _compute_file_hash(self, filepath: str) -> str:
         """Computes SHA-256 hash of raw file bytes."""
@@ -525,7 +625,7 @@ class KnowledgeBase:
         return []
 
     def chunk_document(self, doc: KnowledgeDocument) -> List[KnowledgeChunk]:
-        """Splits a document into chunks preserving all document metadata and headings."""
+        """Splits a document into chunks preserving all document metadata, headings, and versions."""
         raw_chunks = chunk_text_heading_aware(
             doc.content,
             target_words=400,
@@ -556,7 +656,14 @@ class KnowledgeBase:
                 topic=doc.topic,
                 language=doc.language,
                 authority_level=doc.authority_level,
-                heading=heading
+                heading=heading,
+                version=doc.version,
+                version_id=doc.version_id,
+                last_verified_date=doc.last_verified_date,
+                ingestion_date=doc.ingestion_date,
+                source_name=doc.source_name,
+                source_url=doc.source_url,
+                document_type=doc.document_type
             )
             doc_chunks.append(chunk_obj)
 
@@ -565,25 +672,71 @@ class KnowledgeBase:
     def ingest_document(self, doc: KnowledgeDocument) -> bool:
         """
         Ingests a document with duplicate detection by content hash.
-        Returns True if ingested, False if duplicate.
+        If a modified version of an existing document is re-ingested:
+        - Keeps the old version record in version_history and version_records (never overwrites silently).
+        - Increments document version and version_id.
+        - Updates the active document index and chunks.
+        Returns True if ingested, False if duplicate content.
         """
         if doc.content_hash in self._doc_content_hashes:
             logger.info("Skipping duplicate document content: %s (hash: %s)", doc.id, doc.content_hash[:8])
             return False
 
+        # If document already exists with different content (modified document being re-ingested)
+        if doc.id in self.documents:
+            old_doc = self.documents[doc.id]
+            if old_doc.content_hash != doc.content_hash:
+                # 1. Preserve old version record in history and records
+                if doc.id not in self.version_history:
+                    self.version_history[doc.id] = []
+                if old_doc not in self.version_history[doc.id]:
+                    self.version_history[doc.id].append(old_doc)
+                self.version_records[old_doc.version_id] = old_doc
+
+                # 2. Preserve old chunks for the old version
+                old_chunks = [c for c in self.chunks if c.doc_id == doc.id]
+                self.version_chunks[old_doc.version_id] = old_chunks
+
+                # 3. Increment version for the new document if not explicitly higher
+                if doc.version <= old_doc.version:
+                    doc.version = old_doc.version + 1
+                    doc.version_id = f"{doc.id}_v{doc.version}"
+
+                # 4. Remove old content hash and old chunks from active retrieval pool
+                self._doc_content_hashes.discard(old_doc.content_hash)
+                for c in old_chunks:
+                    self._chunk_content_hashes.discard(c.content_hash)
+                self.chunks = [c for c in self.chunks if c.doc_id != doc.id]
+
+        elif doc.id in self.version_history:
+            # Document existed previously in version history
+            history = self.version_history[doc.id]
+            max_ver = max(d.version for d in history) if history else 0
+            if doc.version <= max_ver:
+                doc.version = max_ver + 1
+                doc.version_id = f"{doc.id}_v{doc.version}"
+
+        # Ingest active document
         self.documents[doc.id] = doc
         self._doc_content_hashes.add(doc.content_hash)
+        self.version_records[doc.version_id] = doc
+
+        if doc.id not in self.version_history:
+            self.version_history[doc.id] = []
+        if doc not in self.version_history[doc.id]:
+            self.version_history[doc.id].append(doc)
 
         doc_chunks = self.chunk_document(doc)
         for chunk in doc_chunks:
             if chunk.content_hash not in self._chunk_content_hashes:
                 self.chunks.append(chunk)
                 self._chunk_content_hashes.add(chunk.content_hash)
+        self.version_chunks[doc.version_id] = doc_chunks
 
         return True
 
     def remove_document(self, doc_id: str) -> None:
-        """Removes a document and all its chunks from the in-memory index."""
+        """Removes a document and all its chunks from the active in-memory index."""
         if doc_id in self.documents:
             doc = self.documents.pop(doc_id)
             self._doc_content_hashes.discard(doc.content_hash)
@@ -597,7 +750,7 @@ class KnowledgeBase:
     def sync(self) -> Dict[str, Any]:
         """
         Scans data_dir, detects new, modified, and deleted files,
-        and incrementally re-indexes documents and chunks.
+        and incrementally re-indexes documents and chunks while preserving historical version records.
         """
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir, exist_ok=True)
@@ -606,7 +759,7 @@ class KnowledgeBase:
         report = {"added": 0, "updated": 0, "deleted": 0, "unchanged": 0}
         current_files: Set[str] = set()
 
-        # Find all .md, .txt, .json files (excluding README.md)
+        # Find all .md, .txt, .json, .pdf files (excluding README.md)
         for root, _, files in os.walk(self.data_dir):
             for file in files:
                 if file.lower() == "readme.md":
@@ -640,10 +793,18 @@ class KnowledgeBase:
                 report["unchanged"] += 1
                 continue
 
-            # If previously registered, remove old docs first
+            # If previously registered, archive old version record before updating
             if prev_info:
                 for old_doc_id in prev_info.get("doc_ids", []):
-                    self.remove_document(old_doc_id)
+                    old_doc = self.documents.get(old_doc_id)
+                    if old_doc:
+                        if old_doc_id not in self.version_history:
+                            self.version_history[old_doc_id] = []
+                        if old_doc not in self.version_history[old_doc_id]:
+                            self.version_history[old_doc_id].append(old_doc)
+                        self.version_records[old_doc.version_id] = old_doc
+                        self.version_chunks[old_doc.version_id] = [c for c in self.chunks if c.doc_id == old_doc_id]
+                        self.remove_document(old_doc_id)
                 report["updated"] += 1
             else:
                 report["added"] += 1
@@ -675,13 +836,34 @@ class KnowledgeBase:
         return [c for c in self.chunks if c.topic.lower() == t_lower]
 
     def get_document(self, doc_id: str) -> Optional[KnowledgeDocument]:
-        """Retrieves a document by ID."""
+        """Retrieves active document by ID."""
         return self.documents.get(doc_id)
 
+    def get_document_version(self, doc_id: str, version: int) -> Optional[KnowledgeDocument]:
+        """Retrieves a specific version record of a document."""
+        version_id = f"{doc_id}_v{version}"
+        if version_id in self.version_records:
+            return self.version_records[version_id]
+        for d in self.version_history.get(doc_id, []):
+            if d.version == version:
+                return d
+        return None
+
+    def get_document_history(self, doc_id: str) -> List[KnowledgeDocument]:
+        """Retrieves complete version history records for a document."""
+        return list(self.version_history.get(doc_id, []))
+
+    def get_document_chunks_for_version(self, version_id: str) -> List[KnowledgeChunk]:
+        """Retrieves archived chunks for a specific document version."""
+        return list(self.version_chunks.get(version_id, []))
+
     def clear(self) -> None:
-        """Clears all in-memory index structures and file registries."""
+        """Clears all in-memory index structures, version history, and file registries."""
         self.documents.clear()
         self.chunks.clear()
         self._doc_content_hashes.clear()
         self._chunk_content_hashes.clear()
         self._file_registry.clear()
+        self.version_history.clear()
+        self.version_records.clear()
+        self.version_chunks.clear()

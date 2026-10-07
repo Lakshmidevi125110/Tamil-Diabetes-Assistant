@@ -35,3 +35,11 @@ class Config:
     CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
     XAI_API_KEY = os.getenv("XAI_API_KEY", "")
     GROK_MODEL = os.getenv("GROK_MODEL", "grok-beta")
+
+    # Allowed medical knowledge sources (WHO, ICMR, MoHFW, CDC, or custom additions)
+    ALLOWED_KNOWLEDGE_SOURCES = [
+        s.strip()
+        for s in os.getenv("ALLOWED_KNOWLEDGE_SOURCES", "WHO,ICMR,MoHFW,CDC").split(",")
+        if s.strip()
+    ]
+    ALLOWED_SOURCES = ALLOWED_KNOWLEDGE_SOURCES
