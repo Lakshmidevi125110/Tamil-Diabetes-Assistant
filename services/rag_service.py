@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 from config import Config
 from services.knowledge_base import KnowledgeChunk
 from services.embedding_service import VectorStore, embed, get_embedding, get_gemini_client
-from services.guardrails import check_emergency_symptoms, check_crisis_or_self_harm
+from services.guardrails import check_emergency_symptoms, check_crisis_or_self_harm, is_personal_query
 from services.safety_validator import check_medication_change_query, validate_ai_reply
 from services.ai_service import (
     generate_ai_response,
@@ -206,19 +206,8 @@ def format_sources_list(chunks: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     return sources
 
 
-def is_personal_query(text: str) -> bool:
-    """
-    Detects if a query contains personal medical readings, metrics, or personal statements
-    that must never be stored in the shared query cache or indexed.
-    """
-    patterns = [
-        r"\b(?:my|i am|i have|me|mine|என்|என்னுடைய|எனக்கு)\b",
-        r"\b(?:fasting|post\s*meal|random|sugar|glucose|மதிப்பு|அளவு)\s*(?:is|level)?\s*\d{2,3}\b",
-        r"\b\d{2,3}\s*(?:mg/dl|mgdl)\b",
-        r"\b(?:took|take|injected|dose|units?)\s*\d+\b"
-    ]
-    t = text.lower()
-    return any(re.search(p, t) for p in patterns)
+# is_personal_query is imported from services.guardrails (and re-exported for backwards compatibility)
+
 
 
 def detect_language(text: str, fallback_lang: str = "ta") -> str:
@@ -439,3 +428,9 @@ def generate_rag_response(
 def clear_rag_cache() -> None:
     """Clears query cache (useful in tests and reindexing)."""
     _QUERY_CACHE.clear()
+
+
+def get_rag_cache_size() -> int:
+    """Returns the current count of cached answers."""
+    return len(_QUERY_CACHE)
+

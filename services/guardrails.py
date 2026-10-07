@@ -28,9 +28,64 @@ class SimpleRateLimiter:
         self.ip_history[client_ip].append(now)
         return True
 
-# Initialize rate limiters
+    def reset(self) -> None:
+        """Clears IP request history (useful for test isolation)."""
+        self.ip_history.clear()
+
+    def get_history(self, client_ip: str) -> list:
+        """Returns active timestamps for a given IP."""
+        now = time.time()
+        return [t for t in self.ip_history.get(client_ip, []) if now - t < self.window_seconds]
+
+
+# Initialize rate limiters (small, safe per-IP sliding window limits)
 chat_limiter = SimpleRateLimiter(max_requests=15, window_seconds=60)
-tts_limiter = SimpleRateLimiter(max_requests=40, window_seconds=60)
+tts_limiter = SimpleRateLimiter(max_requests=25, window_seconds=60)
+
+
+def get_rate_limit_message(service: str = "chat", language: str = "ta") -> str:
+    """Returns a friendly, calm rate-limit notice in the requested language."""
+    if language == "en":
+        if service == "tts":
+            return "Too many requests for speech synthesis. Please wait a moment before trying again."
+        return "Too many requests. Please wait a minute before asking another question."
+    else:
+        if service == "tts":
+            return "குரல் சேவைக்கான கோரிக்கைகள் அதிகம். தயவுசெய்து சிறிது நேரம் காத்திருந்து மீண்டும் முயற்சிக்கவும்."
+        return "அதிகமான கோரிக்கைகள். தயவுசெய்து ஒரு நிமிடம் காத்திருந்து மீண்டும் முயற்சிக்கவும்."
+
+
+# Patterns indicating personal information, metrics, personal glucose readings, or dosage logs
+PERSONAL_PATTERNS = [
+    # English personal pronouns & self references
+    r"\b(?:my|i am|i'm|i have|i've|i had|me|mine|myself|patient)\b",
+    # Tamil personal pronouns & self references (Unicode-safe boundary)
+    r"(?:^|\s|[,\.!?])(?:என்|எனது|என்னுடைய|எனக்கு|என்னை|என்னிடம்|நான்)(?:\s|[,\.!?]|$)",
+    # Glucose units and numeric readings (e.g., 120 mg/dL, 6.5 mmol/L)
+    r"\b\d{1,3}(?:\.\d+)?\s*(?:mg/dl|mgdl|mmol/l|mmol)\b",
+    # Glucose / sugar / test value readings with numbers
+    r"(?:fasting|post\s*meal|postprandial|random|sugar|glucose|மதிப்பு|அளவு|சர்க்கரை|இரத்த\s*சர்க்கரை)\s*(?:is|was|level|value|reading)?\s*[:=]?\s*\d{1,3}(?:\.\d+)?\b",
+    # Number followed by test context
+    r"\b\d{2,3}\s*(?:mg/dl|mgdl|fasting|post\s*meal|random)\b",
+    # HbA1c numeric readings
+    r"\b(?:hba1c|a1c)\s*(?:is|was|level|value|of)?\s*[:=]?\s*\d{1,2}(?:\.\d+)?%?\b",
+    # Medication dosages
+    r"\b(?:took|take|taking|injected|inject|dose|units?|dosage)\s*\d+(?:\.\d+)?\b",
+    r"\b\d+\s*(?:units?|mg|ml)\s*(?:of\s+)?(?:insulin|metformin)\b",
+    r"(?:^|\s|[,\.!?])(?:போட்டேன்|எடுத்தேன்|ஊசி)(?:\s|[,\.!?]|$)"
+]
+
+
+def is_personal_query(text: str) -> bool:
+    """
+    Detects if a query contains personal medical readings, metrics, personal pronouns,
+    or dosage logs that must NEVER be stored in the shared query cache or embedding cache.
+    """
+    if not text:
+        return False
+    t = text.lower()
+    return any(re.search(p, t) for p in PERSONAL_PATTERNS)
+
 
 # Maximum allowed input length for queries and speech
 MAX_INPUT_LENGTH = 500

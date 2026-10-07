@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify, send_file
 import edge_tts
 from gtts import gTTS
 from config import Config
-from services.guardrails import tts_limiter, get_client_ip, MAX_TTS_INPUT_LENGTH
+from services.guardrails import tts_limiter, get_client_ip, MAX_TTS_INPUT_LENGTH, get_rate_limit_message
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,10 @@ def text_to_speech():
         client_ip = get_client_ip(request)
         if not tts_limiter.is_allowed(client_ip):
             logger.warning("TTS Rate limit exceeded for IP: %s", client_ip)
-            return jsonify({"error": "TTS rate limit exceeded. Please wait a moment."}), 429
+            data_peek = request.get_json(silent=True) if request.is_json else {}
+            lang = (data_peek.get("language") if isinstance(data_peek, dict) else None) or request.args.get("language", "ta")
+            limit_msg = get_rate_limit_message("tts", language=lang)
+            return jsonify({"error": limit_msg}), 429
 
         data = request.get_json(silent=True)
         if not data:

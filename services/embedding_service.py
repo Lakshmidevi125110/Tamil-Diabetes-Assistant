@@ -3,8 +3,10 @@ import math
 import json
 import logging
 from typing import List, Dict, Any, Optional, Callable, Tuple
+from collections import OrderedDict
 from config import Config
 from services.knowledge_base import KnowledgeChunk
+from services.guardrails import is_personal_query
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,20 @@ DEFAULT_INDEX_FILE = os.path.join(DEFAULT_INDEX_DIR, "knowledge_index.json")
 # Candidate Gemini embedding models
 PRIMARY_EMBED_MODEL = "gemini-embedding-001"
 FALLBACK_EMBED_MODELS = ["gemini-embedding-001", "gemini-embedding-2", "gemini-embedding-2-preview"]
+
+# In-memory LRU cache for embeddings of non-personal educational texts
+MAX_EMBEDDING_CACHE_SIZE = 1000
+_EMBEDDING_CACHE: OrderedDict[Tuple[str, str], List[float]] = OrderedDict()
+
+
+def clear_embedding_cache() -> None:
+    """Clears in-memory embedding cache (useful in tests and re-indexing)."""
+    _EMBEDDING_CACHE.clear()
+
+
+def get_embedding_cache_size() -> int:
+    """Returns the current count of cached embeddings."""
+    return len(_EMBEDDING_CACHE)
 
 
 def get_gemini_client():
@@ -63,7 +79,8 @@ def embed(
     Unified lightweight embedding interface:
     - Accepts a single string or a list of strings.
     - Reads EMBEDDING_PROVIDER from Config (default: 'gemini').
-    - Allows switching embedding providers without changing RAG retrieval code.
+    - Caches embeddings of non-personal educational texts in-memory.
+    - NEVER caches glucose readings or anything personal.
     - If custom_embed_fn is provided (e.g., in unit tests), uses it.
     - Returns single vector for str, or list of vectors for List[str].
     """
@@ -77,6 +94,7 @@ def embed(
         return None
 
     active_provider = (provider or getattr(Config, "EMBEDDING_PROVIDER", "gemini")).lower()
+    provider_key = f"custom_{id(custom_embed_fn)}" if custom_embed_fn else active_provider
     results: List[Optional[List[float]]] = []
 
     for item in text_list:
@@ -85,20 +103,37 @@ def embed(
             continue
 
         item_str = str(item)
+        norm_key = item_str.strip()
+        is_personal = is_personal_query(norm_key)
+        cache_key = (provider_key, norm_key)
 
-        if custom_embed_fn:
-            try:
-                results.append(custom_embed_fn(item_str))
-            except Exception as e:
-                logger.error("Custom embedding function error: %s", str(e))
-                results.append(None)
+        # 1. Non-personal educational text: check cache
+        if not is_personal and cache_key in _EMBEDDING_CACHE:
+            _EMBEDDING_CACHE.move_to_end(cache_key)
+            results.append(list(_EMBEDDING_CACHE[cache_key]))
             continue
 
-        if active_provider == "gemini":
-            results.append(_embed_gemini(item_str))
+        # 2. Compute embedding
+        vec: Optional[List[float]] = None
+        if custom_embed_fn:
+            try:
+                vec = custom_embed_fn(item_str)
+            except Exception as e:
+                logger.error("Custom embedding function error: %s", str(e))
+                vec = None
+        elif active_provider == "gemini":
+            vec = _embed_gemini(item_str)
         else:
             logger.warning("Unknown embedding provider '%s', defaulting to Gemini.", active_provider)
-            results.append(_embed_gemini(item_str))
+            vec = _embed_gemini(item_str)
+
+        # 3. Store in cache ONLY if NOT personal and vector is valid
+        if vec is not None and not is_personal:
+            if len(_EMBEDDING_CACHE) >= MAX_EMBEDDING_CACHE_SIZE:
+                _EMBEDDING_CACHE.popitem(last=False)
+            _EMBEDDING_CACHE[cache_key] = list(vec)
+
+        results.append(vec)
 
     return results[0] if is_single else results
 

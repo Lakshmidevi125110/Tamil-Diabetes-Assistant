@@ -6,7 +6,8 @@ from services.guardrails import (
     validate_input_length,
     check_emergency_symptoms,
     check_crisis_or_self_harm,
-    get_client_ip
+    get_client_ip,
+    get_rate_limit_message
 )
 from services.safety_validator import (
     check_medication_change_query,
@@ -21,6 +22,8 @@ logger = logging.getLogger(__name__)
 chat_bp = Blueprint("chat", __name__)
 
 @chat_bp.route("/chat", methods=["GET", "POST"])
+@chat_bp.route("/rag", methods=["GET", "POST"])
+@chat_bp.route("/rag/ask", methods=["GET", "POST"])
 def chat():
     """
     Chat endpoint:
@@ -66,11 +69,7 @@ def chat():
     client_ip = get_client_ip(request)
     if not chat_limiter.is_allowed(client_ip):
         logger.warning("Rate limit exceeded for IP: %s", client_ip)
-        limit_msg = (
-            "Too many requests. Please wait a minute before asking another question."
-            if language == "en" else
-            "அதிகமான கோரிக்கைகள். தயவுசெய்து ஒரு நிமிடம் காத்திருந்து மீண்டும் முயற்சிக்கவும்."
-        )
+        limit_msg = get_rate_limit_message("chat", language=language)
         return jsonify({"error": limit_msg}), 429
 
     # 4. Security Guardrail: Input Length Limit (max 500 characters)
