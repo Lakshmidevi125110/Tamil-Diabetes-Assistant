@@ -218,12 +218,15 @@ class VectorStore:
         embed_fn: Optional[Callable[[str], Optional[List[float]]]] = None,
         topic_filter: Optional[str] = None,
         source_filter: Optional[str] = None,
-        language_filter: Optional[str] = None
+        language_filter: Optional[str] = None,
+        source: Optional[str] = None,
+        topic: Optional[str] = None,
+        language: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Performs top-k cosine similarity search.
-        Filters by topic, source, and language.
-        Applies top-k (from Config.RAG_TOP_K) and cutoff (from Config.RAG_MIN_SCORE).
+        Filters by topic, source, and language (accepts source/source_filter, topic/topic_filter, language/language_filter).
+        Applies top-k (from Config.RAG_TOP_K) and cutoff (from Config.RAG_MIN_SCORE, defaulting to 0.45).
         Returns a list of match dicts: {"chunk": metadata_dict, "score": float}
         """
         if not self.entries or not query or not query.strip():
@@ -231,6 +234,9 @@ class VectorStore:
 
         effective_k = k if k is not None else getattr(Config, "RAG_TOP_K", 3)
         effective_min_score = min_score if min_score is not None else (getattr(Config, "RAG_MIN_SCORE", 0.45) if k is None else 0.0)
+        effective_source = source or source_filter
+        effective_topic = topic or topic_filter
+        effective_lang = language or language_filter
 
         query_vec = embed(query, custom_embed_fn=embed_fn)
         if query_vec is None:
@@ -243,22 +249,22 @@ class VectorStore:
             meta = entry.get("metadata", {})
 
             # Topic filtering
-            if topic_filter:
+            if effective_topic:
                 entry_topic = meta.get("topic", "").strip().lower()
-                if entry_topic != topic_filter.strip().lower():
+                if entry_topic != effective_topic.strip().lower():
                     continue
 
             # Source filtering
-            if source_filter:
+            if effective_source:
                 entry_source = meta.get("source", "").strip().lower()
-                s_filter = source_filter.strip().lower()
+                s_filter = effective_source.strip().lower()
                 if s_filter != entry_source and s_filter not in entry_source:
                     continue
 
             # Language filtering
-            if language_filter:
+            if effective_lang:
                 entry_lang = meta.get("language", "").strip().lower()
-                if entry_lang != language_filter.strip().lower():
+                if entry_lang != effective_lang.strip().lower():
                     continue
 
             vec = entry.get("vector", [])

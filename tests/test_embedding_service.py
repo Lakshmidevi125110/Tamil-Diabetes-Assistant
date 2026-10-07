@@ -195,6 +195,16 @@ def test_vector_store_topic_and_language_filtering(tmp_path):
     res_other = store.search("glucose diet", k=5, embed_fn=fake_embed, topic_filter="non_existent")
     assert len(res_other) == 0
 
+    # Filter source = S1 (using source parameter)
+    res_s1 = store.search("glucose diet", k=5, embed_fn=fake_embed, source="S1")
+    assert len(res_s1) == 1
+    assert res_s1[0]["chunk"]["source"] == "S1"
+
+    # Filter source_filter = S2 (using source_filter parameter)
+    res_s2 = store.search("glucose diet", k=5, embed_fn=fake_embed, source_filter="S2")
+    assert len(res_s2) == 1
+    assert res_s2[0]["chunk"]["source"] == "S2"
+
 
 def test_missing_api_key_handled_without_crashing(monkeypatch, tmp_path):
     """Verify that a missing or unconfigured API key returns None / empty results without raising unhandled exceptions."""
