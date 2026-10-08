@@ -1,28 +1,26 @@
-# Virtual environment
+# Secrets and environment variables (only *.example files are committed)
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
 venv/
 env/
-ENV/
-
-# Secrets and environment variables
-.env
-*.env.local
-
-# Python cache and bytecode
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-
-# Audio files (temporary voice files)
-static/audio/*.mp3
-static/audio/*.wav
-*.mp3
-*.wav
-
-# Testing and coverage
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Node / Vite
+node_modules/
+dist/
+
+# Audio files (temporary voice files)
+*.mp3
+*.wav
 
 # Editor and OS files
 .vscode/
@@ -32,5 +30,5 @@ Thumbs.db
 *.log
 
 # Vector RAG Index (keep prebuilt knowledge_index.json for Render ephemeral deployment)
-data/index/*
-!data/index/knowledge_index.json
+backend/data/index/*
+!backend/data/index/knowledge_index.json
