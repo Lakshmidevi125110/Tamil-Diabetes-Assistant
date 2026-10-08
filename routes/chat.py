@@ -13,7 +13,8 @@ from services.safety_validator import (
     check_medication_change_query,
     validate_ai_reply
 )
-from services.rag_service import generate_rag_response
+from services.rag_service import generate_rag_response, validate_tone
+from services.embedding_service import VectorStore
 
 # Configure logger for this route
 logger = logging.getLogger(__name__)
@@ -130,6 +131,30 @@ def chat():
         language=language,
         history=valid_history
     )
+
+    # 7b. When local knowledge base is empty (no clinical documents placed/ingested in data/knowledge yet),
+    # fall back to the comprehensive clinical AI service so users receive varied, high-quality,
+    # medically grounded answers to their questions rather than a repetitive refusal message.
+    if rag_result.get("status") == "insufficient_info" and VectorStore().is_empty():
+        logger.info("Vector knowledge base is empty; falling back to clinical AI service.")
+        try:
+            base_reply = generate_ai_response(
+                user_message=user_message,
+                language=language,
+                history=valid_history
+            )
+            _, safe_reply, _ = validate_ai_reply(base_reply, language=language)
+            calm_reply = validate_tone(safe_reply, language=language)
+            return jsonify({
+                "status": "success",
+                "received_message": user_message,
+                "language": language,
+                "reply": calm_reply,
+                "sources": [],
+                "rag_applied": False
+            }), 200
+        except Exception as fallback_err:
+            logger.error("Error during clinical AI fallback: %s", fallback_err)
 
     # 8. Return formatted response with real retrieved sources
     return jsonify({

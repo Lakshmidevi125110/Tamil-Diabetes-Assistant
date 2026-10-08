@@ -91,34 +91,34 @@
                 <div id="chat-messages" class="chat-messages" role="log" aria-live="polite">
                     <!-- Welcome hero and messages dynamically injected here -->
                 </div>
-
-                <!-- Categorized Suggested Questions Section -->
-                <section class="suggestions-section" id="suggestions-section" aria-label="Suggested questions">
-                    <div class="suggestions-header">
-                        <span class="suggestions-label" id="suggestions-label">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
-                            </svg>
-                            <span id="suggestions-title">வழிகாட்டல் கேள்விகள் (Suggested Topics):</span>
-                        </span>
-                        <button type="button" id="toggle-suggestions-btn" class="toggle-suggestions-btn" aria-expanded="true">
-                            <span id="toggle-suggestions-text">மறைக்க (Hide)</span>
-                        </button>
-                    </div>
-
-                    <!-- Category Tabs -->
-                    <div class="category-tabs" id="category-tabs" role="tablist">
-                        <!-- Injected dynamically based on selected language -->
-                    </div>
-
-                    <!-- Question Cards Grid for Active Category -->
-                    <div class="question-cards-grid" id="question-cards-grid" role="tabpanel">
-                        <!-- Injected dynamically based on active category -->
-                    </div>
-                </section>
             </main>
+
+            <!-- Categorized Suggested Questions Section (Always visible above input bar) -->
+            <section class="suggestions-section" id="suggestions-section" aria-label="Suggested questions">
+                <div class="suggestions-header">
+                    <span class="suggestions-label" id="suggestions-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        <span id="suggestions-title">வழிகாட்டல் கேள்விகள் (Suggested Topics):</span>
+                    </span>
+                    <button type="button" id="toggle-suggestions-btn" class="toggle-suggestions-btn" aria-expanded="true">
+                        <span id="toggle-suggestions-text">மறைக்க (Hide)</span>
+                    </button>
+                </div>
+
+                <!-- Category Tabs -->
+                <div class="category-tabs" id="category-tabs" role="tablist">
+                    <!-- Injected dynamically based on selected language -->
+                </div>
+
+                <!-- Question Cards Grid for Active Category -->
+                <div class="question-cards-grid" id="question-cards-grid" role="tabpanel">
+                    <!-- Injected dynamically based on active category -->
+                </div>
+            </section>
 
             <!-- Voice Status & Interim Transcript Preview Bar -->
             <div id="voice-preview-bar" class="voice-preview-bar hidden" aria-live="assertive">
@@ -256,7 +256,10 @@
 
                         <!-- Form 1: Blood Glucose Log Form -->
                         <form id="glucose-entry-form" class="tracker-form" autocomplete="off">
-                            <h4 id="form-glucose-title" class="form-title">புதிய சர்க்கரை அளவைச் சேர்க்கவும்</h4>
+                            <div class="form-header-row">
+                                <h4 id="form-glucose-title" class="form-title">புதிய சர்க்கரை அளவைச் சேர்க்கவும்</h4>
+                                <button type="button" id="btn-scroll-to-chart" class="btn-link-chart">📈 வரைபடம் (View Trend Chart)</button>
+                            </div>
                             
                             <!-- Glucose Value Input -->
                             <div class="form-group">

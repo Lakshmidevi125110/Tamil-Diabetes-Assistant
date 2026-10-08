@@ -438,7 +438,9 @@ const inputGlucoseDate = document.getElementById('input-glucose-date');
 const labelGlucoseTime = document.getElementById('label-glucose-time');
 const inputGlucoseTime = document.getElementById('input-glucose-time');
 const labelGlucoseNotes = document.getElementById('label-glucose-notes');
+const btnAddGlucose = document.getElementById('btn-add-glucose');
 const btnTextAddGlucose = document.getElementById('btn-text-add-glucose');
+const btnScrollToChart = document.getElementById('btn-scroll-to-chart');
 
 // Module A3: Glucose Educational Feedback Elements
 const glucoseResponseCard = document.getElementById('glucose-response-card');
@@ -770,20 +772,56 @@ async function speakText(text, lang, btnElement) {
 // ============================================================================
 // 7. Chat Assistant Helpers (Stage 1 & Stage 3 Preserved)
 // ============================================================================
-async function copyMessageText(text, btnElement) {
+function fallbackCopyText(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
+    textArea.style.opacity = "0";
+    textArea.setAttribute("readonly", "");
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    let successful = false;
     try {
-        await navigator.clipboard.writeText(text);
-        const originalHTML = btnElement.innerHTML;
-        btnElement.innerHTML = `${CHECK_ICON_SVG} <span>${I18N[currentLang].copiedText}</span>`;
-        btnElement.classList.add('copied');
-        setTimeout(() => {
-            btnElement.innerHTML = originalHTML;
-            btnElement.classList.remove('copied');
-        }, 2000);
+        successful = document.execCommand('copy');
     } catch (err) {
-        console.warn("Unable to copy to clipboard:", err);
+        successful = false;
     }
+    document.body.removeChild(textArea);
+    return successful;
 }
+
+async function copyMessageText(text, btnElement) {
+    let copied = false;
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            copied = true;
+        } else {
+            copied = fallbackCopyText(text);
+        }
+    } catch (err) {
+        copied = fallbackCopyText(text);
+    }
+
+    const originalHTML = btnElement.innerHTML;
+    btnElement.innerHTML = `${CHECK_ICON_SVG} <span>${I18N[currentLang].copiedText}</span>`;
+    btnElement.classList.add('copied');
+    setTimeout(() => {
+        btnElement.innerHTML = originalHTML;
+        btnElement.classList.remove('copied');
+    }, 2000);
+}
+
 
 function appendMessage(sender, text, isEmergency = false, isError = false, sources = []) {
     const row = document.createElement('div');
@@ -1376,8 +1414,61 @@ function detectTopicFromText(text) {
     return null;
 }
 
-function pickFreshQuestion(excludeSlotIndex) {
-    const pool = (questionsPool && questionsPool.length > 0) ? questionsPool : DEFAULT_QUESTIONS_POOL;
+const QUESTION_CATEGORIES = [
+    {
+        id: 'all',
+        icon: '🌟',
+        en: 'All Topics',
+        ta: 'அனைத்தும்',
+        topics: null
+    },
+    {
+        id: 'food',
+        icon: '🥗',
+        en: 'Food & Nutrition',
+        ta: 'உணவு & ஊட்டச்சத்து',
+        topics: ['healthy eating', 'carbohydrates', 'fiber', 'hydration']
+    },
+    {
+        id: 'glucose',
+        icon: '🩸',
+        en: 'Blood Glucose & Insulin',
+        ta: 'இரத்த சர்க்கரை & இன்சுலின்',
+        topics: ['glucose', 'fasting', 'post-meal', 'HbA1c', 'hypoglycemia awareness', 'hyperglycemia awareness', 'glucose tracking']
+    },
+    {
+        id: 'health',
+        icon: '🏃',
+        en: 'Health & Exercise',
+        ta: 'உடல்நலம் & உடற்பயிற்சி',
+        topics: ['activity', 'sleep', 'stress', 'foot care', 'eye health', 'kidney health', 'blood pressure', 'cholesterol', 'when to seek help']
+    },
+    {
+        id: 'diabetes',
+        icon: '🩺',
+        en: 'About Diabetes',
+        ta: 'சர்க்கரை நோய் பற்றி',
+        topics: ['basics', 'type 1', 'type 2', 'gestational', 'myths', 'doctor visits']
+    }
+];
+
+let activeQuestionCategoryId = 'all';
+
+function getCategoryFilteredPool(categoryId) {
+    const rawPool = (questionsPool && questionsPool.length > 0) ? questionsPool : DEFAULT_QUESTIONS_POOL;
+    if (!rawPool || rawPool.length === 0) return [];
+    if (!categoryId || categoryId === 'all') return rawPool;
+
+    const catObj = QUESTION_CATEGORIES.find(c => c.id === categoryId);
+    if (!catObj || !catObj.topics) return rawPool;
+
+    const lowerTopics = catObj.topics.map(t => t.toLowerCase());
+    const filtered = rawPool.filter(q => q.topic && lowerTopics.includes(q.topic.toLowerCase()));
+    return filtered.length > 0 ? filtered : rawPool;
+}
+
+function pickFreshQuestion(excludeSlotIndex, categoryId = activeQuestionCategoryId) {
+    const pool = getCategoryFilteredPool(categoryId);
     if (!pool || pool.length === 0) return null;
 
     // Collect IDs currently visible in the OTHER slots (guarantees no duplicates visible at same time)
@@ -1395,7 +1486,7 @@ function pickFreshQuestion(excludeSlotIndex) {
         !recentlyShownIds.has(q.id)
     );
 
-    // If pool is exhausted, safely reset session tracking
+    // If pool is exhausted, safely reset session tracking for this category
     if (candidates.length === 0) {
         usedQuestionIds.clear();
         recentlyShownIds.clear();
@@ -1406,7 +1497,7 @@ function pickFreshQuestion(excludeSlotIndex) {
         }
     }
 
-    // Prefer questions on the same topic as the last question/answer
+    // Prefer questions on the same topic as the last question/answer (dynamic evolution)
     let chosen = null;
     if (lastTopic) {
         const sameTopic = candidates.filter(q => q.topic && q.topic.toLowerCase() === lastTopic.toLowerCase());
@@ -1423,7 +1514,7 @@ function pickFreshQuestion(excludeSlotIndex) {
     if (chosen) {
         recentlyShownIds.add(chosen.id);
         // Keep recentlyShownIds rolling window bounded
-        if (recentlyShownIds.size > 25) {
+        if (recentlyShownIds.size > 30) {
             const arr = Array.from(recentlyShownIds);
             recentlyShownIds = new Set(arr.slice(arr.length - 20));
         }
@@ -1475,11 +1566,11 @@ function handleSuggestionClick(slotIndex) {
         lastTopic = clickedQ.topic;
     }
 
-    // Pick fresh question for ONLY this slot
-    const freshQ = pickFreshQuestion(slotIndex);
+    // Pick fresh evolving question for ONLY this slot in the active category
+    const freshQ = pickFreshQuestion(slotIndex, activeQuestionCategoryId);
     displayedQuestions[slotIndex] = freshQ;
 
-    // Replace ONLY that slot in the DOM; the other two stay in place
+    // Replace ONLY that slot in the DOM with dynamic evolution effect
     replaceSlotCardInDOM(slotIndex, freshQ);
 }
 
@@ -1487,6 +1578,7 @@ function replaceSlotCardInDOM(slotIndex, freshQ) {
     if (!freshQ) return;
     const oldCard = questionCardsGrid.querySelector(`[data-slot="${slotIndex}"]`) || questionCardsGrid.children[slotIndex];
     const newCard = createQuestionCardElement(freshQ, slotIndex);
+    newCard.classList.add('question-evolved');
 
     if (oldCard && oldCard.parentNode === questionCardsGrid) {
         questionCardsGrid.replaceChild(newCard, oldCard);
@@ -1495,21 +1587,69 @@ function replaceSlotCardInDOM(slotIndex, freshQ) {
     }
 }
 
-function initSuggestedQuestions() {
-    if (categoryTabs) categoryTabs.style.display = 'none';
+function renderCategoryTabs() {
+    if (!categoryTabs) return;
+    if (!suggestionsVisible) {
+        categoryTabs.style.display = 'none';
+        return;
+    }
+    categoryTabs.style.display = 'flex';
+    categoryTabs.innerHTML = '';
 
+    QUESTION_CATEGORIES.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'category-tab-btn' + (cat.id === activeQuestionCategoryId ? ' active' : '');
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', cat.id === activeQuestionCategoryId ? 'true' : 'false');
+        btn.setAttribute('data-category', cat.id);
+
+        const labelText = cat[currentLang] || cat.en || cat.id;
+        btn.innerHTML = `
+            <span class="category-icon" aria-hidden="true">${cat.icon}</span>
+            <span class="category-text">${escapeHTML(labelText)}</span>
+        `;
+
+        btn.addEventListener('click', () => {
+            if (activeQuestionCategoryId === cat.id) return;
+            switchQuestionCategory(cat.id);
+        });
+
+        categoryTabs.appendChild(btn);
+    });
+}
+
+function switchQuestionCategory(categoryId) {
+    activeQuestionCategoryId = categoryId;
+    renderCategoryTabs();
+    for (let slot = 0; slot < 3; slot++) {
+        displayedQuestions[slot] = pickFreshQuestion(slot, activeQuestionCategoryId);
+    }
+    renderSuggestedQuestionsUI();
+}
+
+function initSuggestedQuestions() {
+    renderCategoryTabs();
     for (let slot = 0; slot < 3; slot++) {
         if (!displayedQuestions[slot]) {
-            displayedQuestions[slot] = pickFreshQuestion(slot);
+            displayedQuestions[slot] = pickFreshQuestion(slot, activeQuestionCategoryId);
         }
     }
     renderSuggestedQuestionsUI();
 }
 
 function renderSuggestedQuestionsUI() {
-    if (categoryTabs) categoryTabs.style.display = 'none';
-    questionCardsGrid.innerHTML = '';
+    if (!categoryTabs || !questionCardsGrid) return;
+    if (suggestionsVisible) {
+        categoryTabs.style.display = 'flex';
+        questionCardsGrid.style.display = 'grid';
+    } else {
+        categoryTabs.style.display = 'none';
+        questionCardsGrid.style.display = 'none';
+        return;
+    }
 
+    questionCardsGrid.innerHTML = '';
     for (let slot = 0; slot < 3; slot++) {
         if (displayedQuestions[slot]) {
             const card = createQuestionCardElement(displayedQuestions[slot], slot);
@@ -1519,6 +1659,7 @@ function renderSuggestedQuestionsUI() {
 }
 
 function updateSuggestedQuestionsLanguage(lang) {
+    renderCategoryTabs();
     for (let slot = 0; slot < 3; slot++) {
         const qObj = displayedQuestions[slot];
         if (!qObj) continue;
@@ -1535,7 +1676,7 @@ function updateSuggestedQuestionsLanguage(lang) {
 }
 
 function renderCategoriesAndQuestions() {
-    if (categoryTabs) categoryTabs.style.display = 'none';
+    renderCategoryTabs();
     if (!displayedQuestions[0] || !displayedQuestions[1] || !displayedQuestions[2]) {
         initSuggestedQuestions();
     } else {
@@ -1550,6 +1691,7 @@ async function fetchSuggestedQuestionsPool() {
             const data = await res.json();
             if (data && Array.isArray(data.questions) && data.questions.length > 0) {
                 questionsPool = data.questions;
+                renderCategoriesAndQuestions();
             }
         }
     } catch (err) {
@@ -1692,7 +1834,14 @@ function setupSpeechRecognition() {
         voicePreviewBar.classList.add('hidden');
 
         if (event.error === 'not-allowed') {
-            appendMessage('assistant', I18N[currentLang].micPermissionDenied, false, true);
+            const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            let msg = I18N[currentLang].micPermissionDenied;
+            if (!window.isSecureContext && !isLocalhost) {
+                msg += (currentLang === 'ta'
+                    ? "\n\n💡 குறிப்பு: உலாவி பாதுகாப்பு விதிகளின்படி, மைக்ரோஃபோன் இயங்க http://localhost:5000 முகவரியில் திறக்கவும்."
+                    : "\n\n💡 Tip: Due to browser security restrictions on network IPs, please access the app at http://localhost:5000 to enable the microphone.");
+            }
+            appendMessage('assistant', msg, false, true);
         } else if (event.error === 'network') {
             appendMessage('assistant', I18N[currentLang].errorMsg, false, true);
         }
@@ -1704,6 +1853,16 @@ function toggleSpeechRecognition() {
 
     if (!SpeechRecognition) {
         appendMessage('assistant', I18N[currentLang].speechNotSupported, false, true);
+        userInput.focus();
+        return;
+    }
+
+    const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (!window.isSecureContext && !isLocalhost) {
+        const lanWarning = currentLang === 'ta'
+            ? "⚠️ மைக்ரோஃபோனைப் பயன்படுத்த, உலாவியில் http://localhost:5000 முகவரியில் தளத்தைத் திறக்கவும் அல்லது உலாவி அமைப்புகளில் தள அனுமதியை இயக்கவும்."
+            : "⚠️ Microphone access requires a secure context or localhost. Please open http://localhost:5000 in your browser or allow microphone access in site settings.";
+        appendMessage('assistant', lanWarning, false, true);
         userInput.focus();
         return;
     }
@@ -1724,6 +1883,7 @@ function toggleSpeechRecognition() {
             recognition.start();
         } catch (err) {
             console.error("Error starting speech recognition:", err);
+            appendMessage('assistant', I18N[currentLang].micPermissionDenied, false, true);
         }
     }
 }
@@ -1973,6 +2133,12 @@ function renderGlucoseChart() {
         svgContent += `
             <path d="${areaPath}" class="svg-trend-area" />
             <path d="${linePath}" class="svg-trend-line" />
+        `;
+    } else if (points.length === 1) {
+        const p = points[0];
+        svgContent += `
+            <line x1="${p.x.toFixed(1)}" y1="${pad.top}" x2="${p.x.toFixed(1)}" y2="${pad.top + chartH}" stroke="#0d9488" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6" />
+            <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="12" fill="#0d9488" fill-opacity="0.16" />
         `;
     }
 
@@ -2244,6 +2410,12 @@ function setLanguage(lang) {
         <option value="random">${t.types.random}</option>
     `;
 
+    if (btnScrollToChart) {
+        btnScrollToChart.textContent = currentLang === 'ta' ? '📈 வரைபடம் (View Trend Chart)' : '📈 View Trend Chart';
+    }
+    inputGlucoseVal.placeholder = currentLang === 'ta' ? 'எ.கா. 120' : 'e.g. 120';
+    inputGlucoseNotes.placeholder = currentLang === 'ta' ? 'எ.கா. இட்லி சாப்பிட்ட பின், நடைபயிற்சிக்கு முன்' : 'e.g. Post-breakfast, before walk';
+
     renderCategoriesAndQuestions();
     resetChat();
 
@@ -2262,6 +2434,17 @@ function initEventListeners() {
     // Primary View Switching
     navBtnChat.addEventListener('click', () => switchPrimaryView('chat'));
     navBtnTracker.addEventListener('click', () => switchPrimaryView('tracker'));
+
+    if (btnScrollToChart) {
+        btnScrollToChart.addEventListener('click', () => {
+            const chartTarget = document.getElementById('chart-viewport') || document.querySelector('.chart-section');
+            if (chartTarget) {
+                chartTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                chartTarget.classList.add('chart-highlighted');
+                setTimeout(() => chartTarget.classList.remove('chart-highlighted'), 1400);
+            }
+        });
+    }
 
     // Chat Form Submission
     chatForm.addEventListener('submit', (e) => {
@@ -2288,12 +2471,13 @@ function initEventListeners() {
 
     toggleSuggestionsBtn.addEventListener('click', () => {
         suggestionsVisible = !suggestionsVisible;
-        categoryTabs.style.display = 'none';
         if (suggestionsVisible) {
-            questionCardsGrid.style.display = 'grid';
+            if (categoryTabs) categoryTabs.style.display = 'flex';
+            if (questionCardsGrid) questionCardsGrid.style.display = 'grid';
             toggleSuggestionsText.textContent = I18N[currentLang].hideSuggestions;
         } else {
-            questionCardsGrid.style.display = 'none';
+            if (categoryTabs) categoryTabs.style.display = 'none';
+            if (questionCardsGrid) questionCardsGrid.style.display = 'none';
             toggleSuggestionsText.textContent = I18N[currentLang].showSuggestions;
         }
     });
@@ -2359,8 +2543,28 @@ function initEventListeners() {
         // Reset form & update UI
         inputGlucoseVal.value = '';
         inputGlucoseNotes.value = '';
+        setHistoryFilter('all');
         renderGlucoseChart();
         renderTrackerHistory();
+
+        // Immediate visual button feedback
+        if (btnTextAddGlucose && btnAddGlucose) {
+            const originalBtnText = btnTextAddGlucose.textContent;
+            btnTextAddGlucose.textContent = currentLang === 'ta' ? '✅ பதிவு செய்யப்பட்டது! (Saved)' : '✅ Saved Successfully!';
+            btnAddGlucose.style.backgroundColor = '#059669';
+            setTimeout(() => {
+                btnTextAddGlucose.textContent = originalBtnText;
+                btnAddGlucose.style.backgroundColor = '';
+            }, 2000);
+        }
+
+        // Smoothly scroll the screen up to the trend chart with highlight pulse
+        const chartTarget = document.getElementById('chart-viewport') || document.querySelector('.chart-section');
+        if (chartTarget) {
+            chartTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            chartTarget.classList.add('chart-highlighted');
+            setTimeout(() => chartTarget.classList.remove('chart-highlighted'), 1400);
+        }
 
         // Module A3: Request polite educational feedback from /glucose/respond
         if (glucoseResponseCard) {

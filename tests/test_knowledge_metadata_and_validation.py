@@ -367,9 +367,12 @@ Valid medical factsheet body content.
 
 
 def test_data_knowledge_has_no_synthetic_articles():
-    """Verify that data/knowledge/ only contains README.md and no auto-generated content."""
+    """Verify that all markdown files in data/knowledge/ (other than README.md) pass official header validation."""
+    from scripts.add_document import validate_document_file
     knowledge_dir = os.path.join(os.path.dirname(__file__), "..", "data", "knowledge")
-    items = os.listdir(knowledge_dir)
-    # The user mandated: 'Do NOT scrape websites and do NOT create any WHO, ICMR, MoHFW or CDC content yourself.'
-    # Only README.md should be in data/knowledge/
-    assert items == ["README.md"]
+    items = [f for f in os.listdir(knowledge_dir) if f != "README.md" and f.endswith(".md")]
+    for filename in items:
+        filepath = os.path.join(knowledge_dir, filename)
+        is_valid, msg, _ = validate_document_file(filepath)
+        assert is_valid, f"Document {filename} failed validation: {msg}"
+

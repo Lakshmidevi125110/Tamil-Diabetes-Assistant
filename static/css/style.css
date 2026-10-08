@@ -654,12 +654,12 @@ body {
     40% { transform: scale(1); opacity: 1; }
 }
 
-/* Categorized Suggested Questions */
+/* Categorized Suggested Questions (Permanently visible above input bar) */
 .suggestions-section {
-    margin-top: auto;
-    padding-top: 14px;
+    padding: 10px 20px 8px 20px;
     border-top: 1px solid var(--border-subtle);
     background-color: #fafbfc;
+    flex-shrink: 0;
 }
 
 .suggestions-header {
@@ -785,6 +785,27 @@ body {
     line-height: 1.45;
     word-break: break-word;
     overflow-wrap: break-word;
+}
+
+@keyframes questionEvolve {
+    0% {
+        opacity: 0.2;
+        transform: translateY(6px) scale(0.97);
+        border-color: var(--primary);
+    }
+    50% {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.18);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        border-color: var(--border-subtle);
+    }
+}
+
+.question-card.question-evolved {
+    animation: questionEvolve 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Voice Preview Bar */
@@ -1130,6 +1151,55 @@ body {
     align-items: center;
     justify-content: center;
     position: relative;
+    transition: all 0.3s ease;
+}
+
+.chart-viewport.chart-highlighted {
+    animation: chartPulse 1.2s ease-out;
+}
+
+@keyframes chartPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.45);
+        border-color: var(--primary);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(13, 148, 136, 0.2);
+        border-color: var(--primary);
+    }
+    100% {
+        box-shadow: none;
+        border-color: var(--border-subtle);
+    }
+}
+
+.form-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.btn-link-chart {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+    transition: all 0.2s ease;
+}
+
+.btn-link-chart:hover {
+    color: var(--primary-hover);
+    background-color: var(--primary-light);
 }
 
 #glucose-svg-chart {
@@ -1635,6 +1705,8 @@ body {
     font-size: 0.8rem;
     max-width: 260px;
     line-height: 1.4;
+}
+
 /* Module A3: Glucose Educational Feedback Card */
 .glucose-response-card {
     margin-top: 14px;

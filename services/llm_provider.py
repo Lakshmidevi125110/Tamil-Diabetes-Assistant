@@ -59,7 +59,11 @@ class GeminiProvider(LLMProvider):
         from google.genai import types
 
         client = genai.Client(api_key=Config.GEMINI_API_KEY)
-        model_name = getattr(Config, "GEMINI_MODEL", "gemini-3.5-flash") or "gemini-3.5-flash"
+        primary_model = getattr(Config, "GEMINI_MODEL", "gemini-flash-lite-latest") or "gemini-flash-lite-latest"
+        candidate_models = [primary_model]
+        for candidate in ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-2.5-flash", "gemini-1.5-flash"]:
+            if candidate not in candidate_models:
+                candidate_models.append(candidate)
 
         contents = []
         if history:
@@ -82,13 +86,20 @@ class GeminiProvider(LLMProvider):
                 temperature=0.3
             )
 
-        kwargs = {"model": model_name, "contents": contents}
-        if config:
-            kwargs["config"] = config
+        for model in candidate_models:
+            try:
+                kwargs = {"model": model, "contents": contents}
+                if config:
+                    kwargs["config"] = config
+                resp = client.models.generate_content(**kwargs)
+                if resp and resp.text:
+                    return resp.text.strip()
+            except Exception as e:
+                logger.warning(
+                    f"GeminiProvider: Model '{model}' generation failed: {e}. Trying next candidate model if available."
+                )
 
-        resp = client.models.generate_content(**kwargs)
-        if resp and resp.text:
-            return resp.text.strip()
+        logger.error("GeminiProvider: All candidate models failed to generate content.")
         return None
 
 
