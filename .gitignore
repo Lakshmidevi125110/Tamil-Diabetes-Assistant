@@ -31,5 +31,6 @@ htmlcov/
 Thumbs.db
 *.log
 
-# Vector RAG Index
-data/index/
+# Vector RAG Index (keep prebuilt knowledge_index.json for Render ephemeral deployment)
+data/index/*
+!data/index/knowledge_index.json

@@ -167,6 +167,18 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
+_DISK_INDEX_CACHE: Dict[str, List[Dict[str, Any]]] = {}
+_DEFAULT_STORE_INSTANCE: Optional['VectorStore'] = None
+
+
+def get_vector_store() -> 'VectorStore':
+    """Returns the singleton VectorStore instance, loading once at startup."""
+    global _DEFAULT_STORE_INSTANCE
+    if _DEFAULT_STORE_INSTANCE is None:
+        _DEFAULT_STORE_INSTANCE = VectorStore()
+    return _DEFAULT_STORE_INSTANCE
+
+
 class VectorStore:
     """
     Lightweight, disk-persisted vector store.
@@ -181,8 +193,31 @@ class VectorStore:
         self.load()
 
     def load(self) -> bool:
-        """Loads index entries from disk if available."""
+        """Loads index entries from disk if available, or auto-rebuilds if missing and key exists."""
+        if self.index_path in _DISK_INDEX_CACHE:
+            self.entries = list(_DISK_INDEX_CACHE[self.index_path])
+            return True
+
         if not os.path.exists(self.index_path):
+            # If prebuilt index is missing on ephemeral disk, try auto-rebuilding if GEMINI_API_KEY is available
+            api_key = (getattr(Config, "GEMINI_API_KEY", "") or "").strip()
+            if api_key and api_key not in ("your_api_key_here", "your_gemini_api_key_here"):
+                try:
+                    logger.info("Vector index not found at %s. Attempting auto-rebuild from knowledge files...", self.index_path)
+                    from services.knowledge_base import KnowledgeBase
+                    knowledge_dir = os.path.join(os.path.dirname(self.index_path), "..", "knowledge")
+                    if os.path.isdir(knowledge_dir):
+                        kb = KnowledgeBase(data_dir=knowledge_dir)
+                        kb.sync()
+                        chunks = kb.get_all_chunks()
+                        if chunks:
+                            self.entries = []
+                            self.add_chunks(chunks)
+                            self.save()
+                            _DISK_INDEX_CACHE[self.index_path] = list(self.entries)
+                            return True
+                except Exception as rebuild_err:
+                    logger.warning("Auto-rebuild of vector index failed: %s", rebuild_err)
             self.entries = []
             return False
 
@@ -191,6 +226,7 @@ class VectorStore:
                 data = json.load(f)
                 if isinstance(data, list):
                     self.entries = data
+                    _DISK_INDEX_CACHE[self.index_path] = list(data)
                     logger.info("Loaded %d indexed vectors from %s", len(self.entries), self.index_path)
                     return True
         except Exception as e:
@@ -200,13 +236,14 @@ class VectorStore:
         return False
 
     def save(self) -> bool:
-        """Saves current index entries to disk."""
+        """Saves current index entries to disk and updates in-memory cache."""
         target_dir = os.path.dirname(self.index_path)
         os.makedirs(target_dir, exist_ok=True)
 
         try:
             with open(self.index_path, "w", encoding="utf-8") as f:
                 json.dump(self.entries, f, ensure_ascii=False)
+            _DISK_INDEX_CACHE[self.index_path] = list(self.entries)
             logger.info("Saved %d indexed vectors to %s", len(self.entries), self.index_path)
             return True
         except Exception as e:
@@ -328,6 +365,7 @@ class VectorStore:
     def clear(self) -> None:
         """Clears all vectors in memory and on disk."""
         self.entries = []
+        _DISK_INDEX_CACHE.pop(self.index_path, None)
         if os.path.exists(self.index_path):
             try:
                 os.remove(self.index_path)

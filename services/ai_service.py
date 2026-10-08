@@ -223,10 +223,14 @@ When replying in Tamil:
 
 def get_gemini_client():
     """Initializes and returns the Gemini client if API key is present."""
-    api_key = Config.GEMINI_API_KEY
-    if not api_key or api_key == "your_api_key_here":
+    api_key = (Config.GEMINI_API_KEY or "").strip()
+    if not api_key or api_key in ("your_api_key_here", "your_gemini_api_key_here"):
         return None
-    return genai.Client(api_key=api_key)
+    try:
+        return genai.Client(api_key=api_key)
+    except Exception as e:
+        logger.warning("Could not initialize Gemini Client: %s", str(e))
+        return None
 
 def generate_ai_response(
     user_message: str, 

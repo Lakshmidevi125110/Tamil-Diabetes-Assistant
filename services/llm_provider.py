@@ -41,8 +41,8 @@ class GeminiProvider(LLMProvider):
         return "gemini"
 
     def is_available(self) -> bool:
-        key = getattr(Config, "GEMINI_API_KEY", "")
-        return bool(key and key.strip() and key != "your_gemini_api_key_here")
+        key = (getattr(Config, "GEMINI_API_KEY", "") or "").strip()
+        return bool(key and key not in ("your_gemini_api_key_here", "your_api_key_here"))
 
     def generate(
         self,
@@ -58,7 +58,11 @@ class GeminiProvider(LLMProvider):
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        try:
+            client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        except Exception as e:
+            logger.warning("GeminiProvider: Client initialization failed: %s", e)
+            return None
         primary_model = getattr(Config, "GEMINI_MODEL", "gemini-flash-lite-latest") or "gemini-flash-lite-latest"
         candidate_models = [primary_model]
         for candidate in ["gemini-flash-lite-latest", "gemini-flash-latest", "gemini-2.5-flash", "gemini-1.5-flash"]:

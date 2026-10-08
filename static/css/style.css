@@ -1430,6 +1430,18 @@ body {
     display: none;
 }
 
+.form-success {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #059669;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-success.hidden {
+    display: none;
+}
+
 /* Stepper counter for water glasses */
 .stepper-counter-row {
     display: flex;

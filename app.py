@@ -30,6 +30,13 @@ def create_app():
     app.register_blueprint(glucose_bp)
     app.register_blueprint(questions_bp)
 
+    # Warm up vector store index on startup for sub-second responses
+    try:
+        from services.embedding_service import get_vector_store
+        get_vector_store()
+    except Exception as e:
+        logger.warning("Vector store startup warmup notice: %s", str(e))
+
     # Default Home route
     @app.route("/", methods=["GET"])
     def home():
@@ -85,5 +92,5 @@ def create_app():
 app = create_app()
 
 if __name__ == "__main__":
-    logger.info("Starting Tamil Voice Diabetes Assistant on port %d...", Config.PORT)
+    logger.info("Starting Tamil Voice Diabetes Assistant on 0.0.0.0:%d (debug=%s)...", Config.PORT, Config.DEBUG)
     app.run(host="0.0.0.0", port=Config.PORT, debug=Config.DEBUG)

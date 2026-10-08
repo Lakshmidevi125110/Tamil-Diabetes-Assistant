@@ -7,7 +7,8 @@ load_dotenv()
 class Config:
     """Application configuration settings."""
     PORT = int(os.getenv("PORT", 5000))
-    DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+    # Turn Flask debug mode OFF in production by default (supports FLASK_DEBUG or DEBUG)
+    DEBUG = os.getenv("FLASK_DEBUG", os.getenv("DEBUG", "False")).strip().lower() in ("true", "1", "yes")
     
     # Gemini AI configuration
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

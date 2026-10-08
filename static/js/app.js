@@ -85,6 +85,10 @@ const I18N = {
         
         // Validation Errors
         errGlucoseRange: "தயவுசெய்து 20 முதல் 600 mg/dL-க்குள் சரியான எண்ணை உள்ளிடவும்.",
+        errGlucoseEmpty: "தயவுசெய்து சர்க்கரை அளவை உள்ளிடவும் (20 முதல் 600 mg/dL).",
+        errGlucoseDate: "தயவுசெய்து சரியான தேதியைத் தேர்ந்தெடுக்கவும்.",
+        errGlucoseTime: "தயவுசெய்து சரியான நேரத்தைத் தேர்ந்தெடுக்கவும்.",
+        glucoseSavedSuccess: "✅ சர்க்கரை அளவு வெற்றிகரமாகப் பதிவு செய்யப்பட்டது!",
         errWalkingRange: "நடைபயிற்சி நிமிடங்களை 0 முதல் 360-க்குள் உள்ளிடவும்.",
         errWaterRange: "தண்ணீர் டம்ளர்களை 0 முதல் 30-க்குள் உள்ளிடவும்.",
 
@@ -243,6 +247,10 @@ const I18N = {
 
         // Validation Errors
         errGlucoseRange: "Please enter a valid glucose number between 20 and 600 mg/dL.",
+        errGlucoseEmpty: "Please enter a blood glucose value (20 to 600 mg/dL).",
+        errGlucoseDate: "Please select a valid date.",
+        errGlucoseTime: "Please select a valid time.",
+        glucoseSavedSuccess: "✅ Blood glucose reading saved successfully!",
         errWalkingRange: "Please enter activity minutes between 0 and 360.",
         errWaterRange: "Please enter water glasses between 0 and 30.",
 
@@ -438,6 +446,7 @@ const inputGlucoseDate = document.getElementById('input-glucose-date');
 const labelGlucoseTime = document.getElementById('label-glucose-time');
 const inputGlucoseTime = document.getElementById('input-glucose-time');
 const labelGlucoseNotes = document.getElementById('label-glucose-notes');
+const inputGlucoseNotes = document.getElementById('input-glucose-notes');
 const btnAddGlucose = document.getElementById('btn-add-glucose');
 const btnTextAddGlucose = document.getElementById('btn-text-add-glucose');
 const btnScrollToChart = document.getElementById('btn-scroll-to-chart');
@@ -463,6 +472,7 @@ const labelWellnessDate = document.getElementById('label-wellness-date');
 const inputWellnessDate = document.getElementById('input-wellness-date');
 const labelWellnessNotes = document.getElementById('label-wellness-notes');
 const inputWellnessNotes = document.getElementById('input-wellness-notes');
+const btnAddWellness = document.getElementById('btn-add-wellness');
 const btnTextAddWellness = document.getElementById('btn-text-add-wellness');
 
 const historyTitle = document.getElementById('history-title');
@@ -539,9 +549,51 @@ function getCurrentTime() {
     return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function normalizeDateToISO(dateStr) {
+    if (!dateStr) return getLocalDateString();
+    const str = String(dateStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        return str;
+    }
+    const slashParts = str.split('/');
+    if (slashParts.length === 3) {
+        let [p1, p2, p3] = slashParts;
+        if (p3.length === 4) {
+            // e.g. "05/10/2026" (DD/MM/YYYY) or "10/07/2026"
+            let day = parseInt(p1, 10);
+            let month = parseInt(p2, 10);
+            if (month > 12 && day <= 12) {
+                const tmp = day; day = month; month = tmp;
+            }
+            return `${p3}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+        if (p1.length === 4) {
+            return `${p1}-${String(parseInt(p2, 10)).padStart(2, '0')}-${String(parseInt(p3, 10)).padStart(2, '0')}`;
+        }
+    }
+    return str;
+}
+
+function parseToTimestamp(dateStr, timeStr) {
+    const isoDate = normalizeDateToISO(dateStr);
+    const cleanTime = (timeStr && String(timeStr).trim()) ? String(timeStr).trim() : '12:00';
+    const ts = new Date(`${isoDate}T${cleanTime}`).getTime();
+    if (!isNaN(ts)) return ts;
+    const fallback = new Date(isoDate).getTime();
+    return !isNaN(fallback) ? fallback : Date.now();
+}
+
+function getRecordTimestamp(item) {
+    if (item && typeof item.timestamp === 'number' && !isNaN(item.timestamp) && item.timestamp > 0) {
+        return item.timestamp;
+    }
+    return parseToTimestamp(item ? item.date : '', item ? item.time : '');
+}
+
 function getFormattedDate(dateStr) {
     if (!dateStr) return '';
-    const parts = dateStr.split('-');
+    const iso = normalizeDateToISO(dateStr);
+    const parts = iso.split('-');
     if (parts.length === 3) {
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
     }
@@ -1895,7 +1947,13 @@ class HealthTracker {
     static getGlucoseReadings() {
         try {
             const raw = localStorage.getItem(STORAGE_KEYS.GLUCOSE);
-            return raw ? JSON.parse(raw) : [];
+            const list = raw ? JSON.parse(raw) : [];
+            if (!Array.isArray(list)) return [];
+            return list.map(item => ({
+                ...item,
+                value: Number(item.value),
+                timestamp: getRecordTimestamp(item)
+            }));
         } catch (e) {
             console.error("Error reading glucose logs from localStorage:", e);
             return [];
@@ -1913,7 +1971,12 @@ class HealthTracker {
     static getWellnessLogs() {
         try {
             const raw = localStorage.getItem(STORAGE_KEYS.WELLNESS);
-            return raw ? JSON.parse(raw) : [];
+            const list = raw ? JSON.parse(raw) : [];
+            if (!Array.isArray(list)) return [];
+            return list.map(item => ({
+                ...item,
+                timestamp: getRecordTimestamp(item)
+            }));
         } catch (e) {
             console.error("Error reading wellness logs from localStorage:", e);
             return [];
@@ -1930,19 +1993,20 @@ class HealthTracker {
 
     static addGlucoseReading(value, type, date, time, notes) {
         const readings = this.getGlucoseReadings();
-        const timestamp = new Date(`${date}T${time}`).getTime() || Date.now();
+        const isoDate = normalizeDateToISO(date);
+        const timestamp = parseToTimestamp(isoDate, time);
         const newEntry = {
             id: 'g_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             value: Number(value),
-            type: type,
-            date: date,
-            time: time,
-            notes: notes ? notes.trim() : '',
+            type: type || 'after_meal',
+            date: isoDate,
+            time: (time && String(time).trim()) ? String(time).trim() : getLocalTimeString(),
+            notes: notes ? String(notes).trim() : '',
             timestamp: timestamp
         };
         readings.push(newEntry);
         // Sort newest first
-        readings.sort((a, b) => b.timestamp - a.timestamp);
+        readings.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         this.saveGlucoseReadings(readings);
         return newEntry;
     }
@@ -1955,17 +2019,18 @@ class HealthTracker {
 
     static addWellnessLog(walking, water, date, notes) {
         const logs = this.getWellnessLogs();
-        const timestamp = new Date(`${date}T12:00`).getTime() || Date.now();
+        const isoDate = normalizeDateToISO(date);
+        const timestamp = parseToTimestamp(isoDate, '12:00');
         const newEntry = {
             id: 'w_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             walking: Number(walking),
             water: Number(water),
-            date: date,
-            notes: notes ? notes.trim() : '',
+            date: isoDate,
+            notes: notes ? String(notes).trim() : '',
             timestamp: timestamp
         };
         logs.push(newEntry);
-        logs.sort((a, b) => b.timestamp - a.timestamp);
+        logs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         this.saveWellnessLogs(logs);
         return newEntry;
     }
@@ -2260,9 +2325,11 @@ function renderTrackerHistory() {
 
         // Delete button listener
         const deleteBtn = card.querySelector('.btn-delete-record');
-        deleteBtn.addEventListener('click', () => {
-            promptDeleteConfirmation(item.id, item._kind);
-        });
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                promptDeleteConfirmation(item.id, item._kind);
+            });
+        }
 
         historyRecordsList.appendChild(card);
     });
@@ -2518,100 +2585,184 @@ function initEventListeners() {
         if (current < 30) inputWellnessWater.value = current + 1;
     });
 
-    // Blood Glucose Form Submission with Strict Numeric Range Validation
-    glucoseEntryForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const valStr = inputGlucoseVal.value.trim();
-        const numVal = parseFloat(valStr);
-
-        // Numeric Range Validation: 20 to 600 mg/dL
-        if (isNaN(numVal) || numVal < 20 || numVal > 600) {
-            glucoseErrorMsg.textContent = I18N[currentLang].errGlucoseRange;
+    // Helper to show/hide glucose form messages
+    function showGlucoseError(msg) {
+        if (glucoseErrorMsg) {
+            glucoseErrorMsg.textContent = msg;
+            glucoseErrorMsg.className = 'form-error';
             glucoseErrorMsg.classList.remove('hidden');
-            inputGlucoseVal.focus();
-            return;
         }
+    }
 
-        glucoseErrorMsg.classList.add('hidden');
-        const type = selectGlucoseType.value;
-        const date = inputGlucoseDate.value || getLocalDateString();
-        const time = inputGlucoseTime.value || getLocalTimeString();
-        const notes = inputGlucoseNotes.value;
-
-        HealthTracker.addGlucoseReading(numVal, type, date, time, notes);
-
-        // Reset form & update UI
-        inputGlucoseVal.value = '';
-        inputGlucoseNotes.value = '';
-        setHistoryFilter('all');
-        renderGlucoseChart();
-        renderTrackerHistory();
-
-        // Immediate visual button feedback
-        if (btnTextAddGlucose && btnAddGlucose) {
-            const originalBtnText = btnTextAddGlucose.textContent;
-            btnTextAddGlucose.textContent = currentLang === 'ta' ? '✅ பதிவு செய்யப்பட்டது! (Saved)' : '✅ Saved Successfully!';
-            btnAddGlucose.style.backgroundColor = '#059669';
+    function showGlucoseSuccess(msg) {
+        if (glucoseErrorMsg) {
+            glucoseErrorMsg.textContent = msg;
+            glucoseErrorMsg.className = 'form-success';
+            glucoseErrorMsg.classList.remove('hidden');
             setTimeout(() => {
-                btnTextAddGlucose.textContent = originalBtnText;
-                btnAddGlucose.style.backgroundColor = '';
-            }, 2000);
-        }
-
-        // Smoothly scroll the screen up to the trend chart with highlight pulse
-        const chartTarget = document.getElementById('chart-viewport') || document.querySelector('.chart-section');
-        if (chartTarget) {
-            chartTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            chartTarget.classList.add('chart-highlighted');
-            setTimeout(() => chartTarget.classList.remove('chart-highlighted'), 1400);
-        }
-
-        // Module A3: Request polite educational feedback from /glucose/respond
-        if (glucoseResponseCard) {
-            glucoseResponseCard.classList.remove('hidden');
-            glucoseResponseCard.classList.remove('emergency');
-            glucoseResponseIcon.textContent = '💡';
-            glucoseResponseBody.innerHTML = `
-                <div class="response-loading-row">
-                    <span>⏳</span>
-                    <span>${I18N[currentLang].glucoseFeedbackLoading}</span>
-                </div>
-            `;
-
-            fetch('/glucose/respond', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    value: numVal,
-                    measurement_type: type,
-                    language: currentLang,
-                    symptoms: notes
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.response) {
-                    if (data.status === 'emergency') {
-                        glucoseResponseCard.classList.add('emergency');
-                        glucoseResponseIcon.textContent = '🚨';
-                    } else {
-                        glucoseResponseCard.classList.remove('emergency');
-                        glucoseResponseIcon.textContent = '💡';
-                    }
-                    const safeHtml = escapeHTML(data.response)
-                        .replace(/\n\n/g, '</p><p>')
-                        .replace(/\n/g, '<br>');
-                    glucoseResponseBody.innerHTML = `<p>${safeHtml}</p>`;
-                } else {
-                    glucoseResponseBody.innerHTML = `<p>${I18N[currentLang].glucoseFeedbackFallback}</p>`;
+                if (glucoseErrorMsg && glucoseErrorMsg.classList.contains('form-success')) {
+                    glucoseErrorMsg.classList.add('hidden');
                 }
-            })
-            .catch(err => {
-                console.warn("Unable to fetch educational glucose response:", err);
-                glucoseResponseBody.innerHTML = `<p>${I18N[currentLang].glucoseFeedbackFallback}</p>`;
-            });
+            }, 3500);
         }
-    });
+    }
+
+    // Blood Glucose Form Submission with Strict Validation & Instant Local Saving
+    let isSubmittingGlucose = false;
+    function handleGlucoseSubmit(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        if (isSubmittingGlucose) return;
+        isSubmittingGlucose = true;
+
+        try {
+            const valStr = (inputGlucoseVal ? inputGlucoseVal.value : '').trim();
+            const dateStr = (inputGlucoseDate ? inputGlucoseDate.value : '').trim();
+            const timeStr = (inputGlucoseTime ? inputGlucoseTime.value : '').trim();
+
+            // 1. Empty value validation
+            if (!valStr) {
+                showGlucoseError(I18N[currentLang].errGlucoseEmpty || I18N[currentLang].errGlucoseRange);
+                if (inputGlucoseVal) inputGlucoseVal.focus();
+                isSubmittingGlucose = false;
+                return;
+            }
+
+            const numVal = parseFloat(valStr);
+
+            // 2. Numeric Range Validation: 20 to 600 mg/dL
+            if (isNaN(numVal) || numVal < 20 || numVal > 600) {
+                showGlucoseError(I18N[currentLang].errGlucoseRange);
+                if (inputGlucoseVal) inputGlucoseVal.focus();
+                isSubmittingGlucose = false;
+                return;
+            }
+
+            // 3. Missing Date check
+            if (!dateStr) {
+                showGlucoseError(I18N[currentLang].errGlucoseDate || "Please select a date.");
+                if (inputGlucoseDate) inputGlucoseDate.focus();
+                isSubmittingGlucose = false;
+                return;
+            }
+
+            // 4. Missing Time check
+            if (!timeStr) {
+                showGlucoseError(I18N[currentLang].errGlucoseTime || "Please select a time.");
+                if (inputGlucoseTime) inputGlucoseTime.focus();
+                isSubmittingGlucose = false;
+                return;
+            }
+
+            // Hide previous error message
+            if (glucoseErrorMsg) glucoseErrorMsg.classList.add('hidden');
+
+            const type = selectGlucoseType ? selectGlucoseType.value : 'after_meal';
+            const notes = inputGlucoseNotes ? inputGlucoseNotes.value : '';
+
+            // Step 1: Immediate Local Storage Save
+            HealthTracker.addGlucoseReading(numVal, type, dateStr, timeStr, notes);
+
+            // Step 2: Reset Form (value & notes cleared, date/time reset to now)
+            if (inputGlucoseVal) inputGlucoseVal.value = '';
+            if (inputGlucoseNotes) inputGlucoseNotes.value = '';
+            setDefaultDateTimeInputs();
+
+            // Step 3: Immediate UI & Chart & History update (no page reload)
+            setHistoryFilter('all');
+            renderGlucoseChart();
+            renderTrackerHistory();
+
+            // Step 4: Short Success Note in selected language
+            showGlucoseSuccess(I18N[currentLang].glucoseSavedSuccess);
+
+            // Button visual feedback
+            if (btnTextAddGlucose && btnAddGlucose) {
+                const originalBtnText = btnTextAddGlucose.textContent;
+                btnTextAddGlucose.textContent = currentLang === 'ta' ? '✅ பதிவு செய்யப்பட்டது!' : '✅ Saved Successfully!';
+                btnAddGlucose.style.backgroundColor = '#059669';
+                setTimeout(() => {
+                    btnTextAddGlucose.textContent = originalBtnText;
+                    btnAddGlucose.style.backgroundColor = '';
+                }, 2000);
+            }
+
+            // Scroll to chart if requested
+            const chartTarget = document.getElementById('chart-viewport') || document.querySelector('.chart-section');
+            if (chartTarget) {
+                chartTarget.classList.add('chart-highlighted');
+                setTimeout(() => chartTarget.classList.remove('chart-highlighted'), 1400);
+            }
+
+            // Step 6: Educational feedback from POST /glucose/respond inside try/catch (never blocks saving)
+            try {
+                if (glucoseResponseCard) {
+                    glucoseResponseCard.classList.remove('hidden');
+                    glucoseResponseCard.classList.remove('emergency');
+                    if (glucoseResponseIcon) glucoseResponseIcon.textContent = '💡';
+                    if (glucoseResponseBody) {
+                        glucoseResponseBody.innerHTML = `
+                            <div class="response-loading-row">
+                                <span>⏳</span>
+                                <span>${I18N[currentLang].glucoseFeedbackLoading}</span>
+                            </div>
+                        `;
+                    }
+
+                    fetch('/glucose/respond', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            value: numVal,
+                            measurement_type: type,
+                            language: currentLang,
+                            symptoms: notes
+                        })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (!glucoseResponseCard || !glucoseResponseBody) return;
+                        if (data && data.response) {
+                            if (data.status === 'emergency') {
+                                glucoseResponseCard.classList.add('emergency');
+                                if (glucoseResponseIcon) glucoseResponseIcon.textContent = '🚨';
+                            } else {
+                                glucoseResponseCard.classList.remove('emergency');
+                                if (glucoseResponseIcon) glucoseResponseIcon.textContent = '💡';
+                            }
+                            const safeHtml = escapeHTML(data.response)
+                                .replace(/\n\n/g, '</p><p>')
+                                .replace(/\n/g, '<br>');
+                            glucoseResponseBody.innerHTML = `<p>${safeHtml}</p>`;
+                        } else {
+                            glucoseResponseBody.innerHTML = `<p>${I18N[currentLang].glucoseFeedbackFallback}</p>`;
+                        }
+                    })
+                    .catch(err => {
+                        console.warn("Unable to fetch educational glucose response:", err);
+                        if (glucoseResponseBody) {
+                            glucoseResponseBody.innerHTML = `<p>${I18N[currentLang].glucoseFeedbackFallback}</p>`;
+                        }
+                    });
+                }
+            } catch (cardErr) {
+                console.warn("Feedback card error:", cardErr);
+            }
+        } finally {
+            isSubmittingGlucose = false;
+        }
+    }
+
+    if (glucoseEntryForm) {
+        glucoseEntryForm.addEventListener('submit', handleGlucoseSubmit);
+    }
+    if (btnAddGlucose) {
+        btnAddGlucose.addEventListener('click', (e) => {
+            handleGlucoseSubmit(e);
+        });
+    }
 
     // Daily Wellness Form Submission
     wellnessEntryForm.addEventListener('submit', (e) => {
