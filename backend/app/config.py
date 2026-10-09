@@ -22,6 +22,9 @@ class Config:
     # Frontend origins allowed to call this API (comma-separated).
     # Add the Vercel deployment URL here in production.
     CORS_ORIGINS = _split_csv(os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"))
+    # Optional regex for origins with changing URLs (Vercel preview deployments),
+    # e.g. ^https://tamil-diabetes-assistant(-[a-z0-9-]+)?\.vercel\.app$
+    CORS_ORIGIN_REGEX = os.getenv("CORS_ORIGIN_REGEX", "").strip() or None
 
     # PostgreSQL (Neon) connection string — not used yet, reserved for persistence
     DATABASE_URL = os.getenv("DATABASE_URL", "")

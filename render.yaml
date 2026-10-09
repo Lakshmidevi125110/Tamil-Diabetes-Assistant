@@ -1,24 +1,57 @@
+# Render Blueprint — BACKEND ONLY (FastAPI).
+# The React frontend is deployed separately on Vercel (see frontend/vercel.json).
+#
+# Setup: Render Dashboard → New → Blueprint → select this repository.
+# Render prompts for every variable marked `sync: false` on first creation.
 services:
   - type: web
     name: tamil-diabetes-assistant-api
     runtime: python
     plan: free
+    region: singapore
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    # Redeploy only when backend files change (frontend-only commits are skipped)
+    buildFilter:
+      paths:
+        - backend/**
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: DEBUG
         value: "False"
-      - key: GEMINI_MODEL
-        value: gemini-3.5-flash
-      - key: GEMINI_API_KEY
-        sync: false
-      # Set to the Vercel frontend URL, e.g. https://your-app.vercel.app
+
+      # --- Frontend access (CORS) ---
+      # Production Vercel URL(s), comma-separated, e.g. https://tamil-diabetes-assistant.vercel.app
       - key: CORS_ORIGINS
         sync: false
-      # Neon PostgreSQL connection string (reserved for upcoming persistence)
+      # Allows Vercel preview deployments; adjust the project name if yours differs
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://tamil-diabetes-assistant(-[a-z0-9-]+)?\.vercel\.app$
+
+      # --- AI ---
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
+      - key: PRIMARY_LLM
+        value: gemini
+
+      # --- Retrieval (RAG) ---
+      - key: VECTOR_STORE
+        value: local_file
+      - key: EMBEDDING_PROVIDER
+        value: gemini
+      - key: RAG_TOP_K
+        value: "3"
+      - key: RAG_MIN_SCORE
+        value: "0.45"
+      - key: ALLOWED_KNOWLEDGE_SOURCES
+        value: WHO,ICMR,MoHFW,CDC
+
+      # --- Database (Neon PostgreSQL, reserved for upcoming persistence) ---
       - key: DATABASE_URL
         sync: false
