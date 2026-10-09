@@ -1,10 +1,10 @@
 /**
- * Geometry for the glucose trend SVG chart (viewBox 650 x 250).
+ * Geometry for the glucose trend SVG chart (viewBox 960 x 300).
  * Pure function so the layout is testable without a DOM.
  */
-export const CHART_WIDTH = 650;
-export const CHART_HEIGHT = 250;
-const PAD = { top: 25, right: 30, bottom: 42, left: 55 };
+export const CHART_WIDTH = 960;
+export const CHART_HEIGHT = 300;
+const PAD = { top: 28, right: 24, bottom: 40, left: 48 };
 
 export function computeChartGeometry(rawReadings) {
     // Chronological order for time-series display

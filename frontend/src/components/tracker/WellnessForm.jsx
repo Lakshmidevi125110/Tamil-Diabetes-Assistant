@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Minus, Plus } from 'lucide-react';
 import { getLocalDateString } from '../../lib/dates.js';
 
 const emptyForm = () => ({ walking: '', water: 8, date: getLocalDateString(), notes: '' });
@@ -33,16 +34,15 @@ export default function WellnessForm({ t, lang, onSave }) {
     };
 
     return (
-        <form className="tracker-form" autoComplete="off" noValidate onSubmit={handleSubmit}>
-            <h4 className="form-title">{t.formWellnessTitle}</h4>
-
-            <div className="form-group">
-                <label htmlFor="input-wellness-walking">{t.labelWalking}</label>
-                <div className="input-with-unit">
+        <form className="panel form" autoComplete="off" noValidate onSubmit={handleSubmit}>
+            <div className="field">
+                <label htmlFor="wellness-walking">{t.labelWalking}</label>
+                <div className="input-group">
                     <input
+                        id="wellness-walking"
+                        className="input"
                         type="number"
-                        id="input-wellness-walking"
-                        className="form-control"
+                        inputMode="numeric"
                         min="0"
                         max="360"
                         step="5"
@@ -50,52 +50,54 @@ export default function WellnessForm({ t, lang, onSave }) {
                         value={form.walking}
                         onChange={setField('walking')}
                     />
-                    <span className="input-unit">{t.unitWalking}</span>
+                    <span className="input-suffix">{t.unitWalking}</span>
                 </div>
             </div>
 
-            <div className="form-group">
-                <label htmlFor="input-wellness-water">{t.labelWater}</label>
-                <div className="stepper-counter-row">
-                    <button type="button" className="stepper-btn" aria-label="Decrease water glasses" onClick={() => stepWater(-1)}>-</button>
-                    <div className="stepper-val-box">
-                        <input
-                            type="number"
-                            id="input-wellness-water"
-                            className="stepper-input"
-                            min="0"
-                            max="30"
-                            value={form.water}
-                            onChange={setField('water')}
-                        />
-                        <span className="stepper-unit">{t.unitWater}</span>
-                    </div>
-                    <button type="button" className="stepper-btn" aria-label="Increase water glasses" onClick={() => stepWater(1)}>+</button>
+            <div className="field">
+                <label htmlFor="wellness-water">{t.labelWater}</label>
+                <div className="stepper">
+                    <button type="button" className="btn btn-outline btn-icon" aria-label="Decrease" onClick={() => stepWater(-1)}>
+                        <Minus />
+                    </button>
+                    <input
+                        id="wellness-water"
+                        className="input"
+                        type="number"
+                        min="0"
+                        max="30"
+                        value={form.water}
+                        onChange={setField('water')}
+                    />
+                    <button type="button" className="btn btn-outline btn-icon" aria-label="Increase" onClick={() => stepWater(1)}>
+                        <Plus />
+                    </button>
+                    <span className="stepper-unit">{t.unitWater}</span>
                 </div>
             </div>
 
-            <div className="form-group">
-                <label htmlFor="input-wellness-date">{t.labelDate}</label>
-                <input type="date" id="input-wellness-date" className="form-control" value={form.date} onChange={setField('date')} />
+            <div className="field">
+                <label htmlFor="wellness-date">{t.labelDate}</label>
+                <input id="wellness-date" className="input" type="date" value={form.date} onChange={setField('date')} />
             </div>
 
-            <div className="form-group">
-                <label htmlFor="input-wellness-notes">{t.labelDailyNotes}</label>
+            <div className="field">
+                <label htmlFor="wellness-notes">{t.labelDailyNotes}</label>
                 <input
+                    id="wellness-notes"
+                    className="input"
                     type="text"
-                    id="input-wellness-notes"
-                    className="form-control"
-                    placeholder={lang === 'ta' ? 'எ.கா. நல்ல தூக்கம், புத்துணர்ச்சி' : 'e.g. Slept well, feeling fresh'}
                     maxLength={120}
+                    placeholder={lang === 'ta' ? 'எ.கா. நல்ல தூக்கம்' : 'e.g. Slept well'}
                     value={form.notes}
                     onChange={setField('notes')}
                 />
-                {error && <span className="form-error">{error}</span>}
             </div>
 
-            <button type="submit" className="btn-primary-action">
-                <span>💾</span> <span>{t.btnAddWellness}</span>
-            </button>
+            <div className="field">
+                <button type="submit" className="btn btn-primary btn-block">{t.btnAddWellness}</button>
+                {error && <span className="field-msg is-error" aria-live="polite">{error}</span>}
+            </div>
         </form>
     );
 }

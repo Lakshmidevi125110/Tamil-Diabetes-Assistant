@@ -1,58 +1,65 @@
-import { BrandIcon, TrashIcon } from '../icons.jsx';
+import { SquarePen, Stethoscope } from 'lucide-react';
 
 const LANGUAGES = [
     { code: 'ta', label: 'தமிழ்' },
     { code: 'en', label: 'English' }
 ];
 
-export default function AppHeader({ t, lang, onLanguageChange, showClearChat, onClearChat }) {
+export default function AppHeader({ t, lang, onLanguageChange, view, onViewChange, onNewChat }) {
+    const tabs = [
+        { id: 'chat', label: t.navChat },
+        { id: 'tracker', label: t.navTracker }
+    ];
+
     return (
-        <header className="app-header">
-            <div className="header-main">
-                <div className="header-brand">
-                    <div className="brand-avatar" aria-hidden="true">
-                        <BrandIcon />
-                    </div>
-                    <div className="brand-text">
-                        <div className="brand-title-row">
-                            <h1>{t.title}</h1>
-                            <span className="edu-badge">
-                                <span className="badge-dot" aria-hidden="true"></span>
-                                <span>{t.eduBadge}</span>
-                            </span>
-                        </div>
-                        <p>{t.subtitle}</p>
-                    </div>
+        <header className="topbar">
+            <div className="topbar-inner">
+                <div className="brand">
+                    <span className="brand-mark" aria-hidden="true"><Stethoscope /></span>
+                    <span className="brand-name">{t.title}</span>
                 </div>
 
-                <div className="header-actions">
-                    {showClearChat && (
+                <nav className="nav" role="tablist" aria-label="Main views">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            id={`nav-${tab.id}`}
+                            className="nav-link"
+                            role="tab"
+                            aria-selected={view === tab.id}
+                            aria-controls={`view-${tab.id}`}
+                            onClick={() => onViewChange(tab.id)}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </nav>
+
+                <div className="topbar-actions">
+                    {view === 'chat' && (
                         <button
                             type="button"
-                            className="header-action-btn"
+                            className="btn btn-ghost"
                             title={t.clearChatTooltip}
-                            aria-label="Clear chat history"
-                            onClick={onClearChat}
+                            aria-label={t.clearChatTooltip}
+                            onClick={onNewChat}
                         >
-                            <TrashIcon />
-                            <span className="action-btn-text">{t.clearChat}</span>
+                            <SquarePen />
+                            <span className="hide-mobile">{t.clearChat}</span>
                         </button>
                     )}
-
-                    <div className="language-switch-container">
-                        <div className="toggle-pill" role="group" aria-label="Language selection">
-                            {LANGUAGES.map(({ code, label }) => (
-                                <button
-                                    key={code}
-                                    type="button"
-                                    className={`lang-btn${lang === code ? ' active' : ''}`}
-                                    aria-pressed={lang === code}
-                                    onClick={() => lang !== code && onLanguageChange(code)}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="segmented" role="group" aria-label="Language">
+                        {LANGUAGES.map(({ code, label }) => (
+                            <button
+                                key={code}
+                                type="button"
+                                aria-pressed={lang === code}
+                                onClick={() => lang !== code && onLanguageChange(code)}
+                            >
+                                {label}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </div>

@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { QUESTION_CATEGORIES } from '../../data/questions.js';
 import { fetchSuggestedQuestions } from '../../lib/api.js';
-import { getQuestionText, getTopicIcon } from '../../lib/questionPicker.js';
-import { HelpIcon } from '../icons.jsx';
+import { getQuestionText } from '../../lib/questionPicker.js';
 
 /**
- * Category tabs plus three question cards. Clicking a card asks it and replaces only
- * that card with a fresh question (preferring the same topic).
+ * Suggested questions. The full layout (category tabs + list) is shown on an empty chat;
+ * `compact` shows a single row of chips above the composer during a conversation.
+ * Asking a question replaces only that slot with a fresh one (preferring the same topic).
  */
-export default function SuggestedQuestions({ t, lang, picker, disabled, onAsk }) {
-    const [visible, setVisible] = useState(true);
+export default function SuggestedQuestions({ t, lang, picker, disabled, onAsk, compact = false }) {
     const [categoryId, setCategoryId] = useState('all');
     const [slots, setSlots] = useState(() => picker.fillAll('all'));
-    const [evolvedSlot, setEvolvedSlot] = useState(null);
 
     // Load the server's question pool; until then the bundled fallback pool is used
     useEffect(() => {
@@ -26,7 +25,6 @@ export default function SuggestedQuestions({ t, lang, picker, disabled, onAsk })
     const switchCategory = (id) => {
         if (id === categoryId) return;
         setCategoryId(id);
-        setEvolvedSlot(null);
         setSlots(picker.fillAll(id));
     };
 
@@ -39,62 +37,64 @@ export default function SuggestedQuestions({ t, lang, picker, disabled, onAsk })
         picker.markUsed(question);
 
         const fresh = picker.pick(slotIndex, slots, categoryId);
-        if (!fresh) return;
-        setSlots(prev => prev.map((q, i) => (i === slotIndex ? fresh : q)));
-        setEvolvedSlot(slotIndex);
+        if (fresh) setSlots(prev => prev.map((q, i) => (i === slotIndex ? fresh : q)));
     };
 
+    const visible = slots.map((q, i) => ({ q, i })).filter(({ q }) => q);
+
+    if (compact) {
+        return (
+            <div className="chips" aria-label={t.suggestionsTitle}>
+                {visible.map(({ q, i }) => (
+                    <button
+                        key={`${i}-${q.id}`}
+                        type="button"
+                        className="chip"
+                        title={getQuestionText(q, lang)}
+                        disabled={disabled}
+                        onClick={() => handleClick(i)}
+                    >
+                        {getQuestionText(q, lang)}
+                    </button>
+                ))}
+            </div>
+        );
+    }
+
     return (
-        <section className="suggestions-section" aria-label="Suggested questions">
-            <div className="suggestions-header">
-                <span className="suggestions-label">
-                    <HelpIcon />
-                    <span>{t.suggestionsTitle}</span>
-                </span>
-                <button
-                    type="button"
-                    className="toggle-suggestions-btn"
-                    aria-expanded={visible}
-                    onClick={() => setVisible(v => !v)}
-                >
-                    <span>{visible ? t.hideSuggestions : t.showSuggestions}</span>
-                </button>
+        <section className="suggest" aria-label={t.suggestionsTitle}>
+            <div className="suggest-label">{t.suggestionsTitle}</div>
+
+            <div className="segmented-scroll">
+                <div className="segmented" role="tablist">
+                    {QUESTION_CATEGORIES.map(cat => (
+                        <button
+                            key={cat.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={cat.id === categoryId}
+                            onClick={() => switchCategory(cat.id)}
+                        >
+                            {cat[lang] || cat.en || cat.id}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {visible && (
-                <>
-                    <div className="category-tabs" role="tablist">
-                        {QUESTION_CATEGORIES.map(cat => (
-                            <button
-                                key={cat.id}
-                                type="button"
-                                className={`category-tab-btn${cat.id === categoryId ? ' active' : ''}`}
-                                role="tab"
-                                aria-selected={cat.id === categoryId}
-                                onClick={() => switchCategory(cat.id)}
-                            >
-                                <span className="category-icon" aria-hidden="true">{cat.icon}</span>
-                                <span className="category-text">{cat[lang] || cat.en || cat.id}</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="question-cards-grid" role="tabpanel">
-                        {slots.map((q, slotIndex) => q && (
-                            <button
-                                key={`${slotIndex}-${q.id}`}
-                                type="button"
-                                className={`question-card${evolvedSlot === slotIndex ? ' question-evolved' : ''}`}
-                                aria-label={getQuestionText(q, lang)}
-                                onClick={() => handleClick(slotIndex)}
-                            >
-                                <span className="question-icon" aria-hidden="true">{getTopicIcon(q.topic)}</span>
-                                <span className="question-text">{getQuestionText(q, lang)}</span>
-                            </button>
-                        ))}
-                    </div>
-                </>
-            )}
+            <div className="panel question-list" role="tabpanel">
+                {visible.map(({ q, i }) => (
+                    <button
+                        key={`${i}-${q.id}`}
+                        type="button"
+                        className="question-row"
+                        disabled={disabled}
+                        onClick={() => handleClick(i)}
+                    >
+                        <span>{getQuestionText(q, lang)}</span>
+                        <ChevronRight aria-hidden="true" />
+                    </button>
+                ))}
+            </div>
         </section>
     );
 }

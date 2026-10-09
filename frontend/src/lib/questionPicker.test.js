@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_QUESTIONS_POOL } from '../data/questions.js';
 import { QuestionPicker, SLOT_COUNT, detectTopicFromText, getTopicIcon } from './questionPicker.js';
-import { cleanTextForSpeech, splitIntoSentences } from './speechText.js';
+import { cleanDisplayText, cleanTextForSpeech, splitIntoSentences } from './speechText.js';
 
 describe('QuestionPicker', () => {
     it('fills all slots without duplicates', () => {
@@ -55,6 +55,11 @@ describe('topic helpers', () => {
 describe('speech text', () => {
     it('strips markdown, links, and emoji', () => {
         expect(cleanTextForSpeech('**வணக்கம்** ⚠️ [x] https://who.int 🚨 நன்றி')).toBe('வணக்கம் நன்றி');
+    });
+
+    it('removes emoji for display but keeps the wording and line breaks', () => {
+        expect(cleanDisplayText('🚨 CRITICAL MEDICAL EMERGENCY:\nCall 108.\n\n⚠️ Disclaimer: educational only.'))
+            .toBe('CRITICAL MEDICAL EMERGENCY:\nCall 108.\n\nDisclaimer: educational only.');
     });
 
     it('splits into sentences', () => {

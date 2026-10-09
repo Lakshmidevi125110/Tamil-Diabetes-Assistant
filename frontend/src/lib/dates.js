@@ -65,3 +65,9 @@ export function getFormattedDate(dateStr) {
     }
     return dateStr;
 }
+
+/** "YYYY-MM-DD" -> "DD/MM" for compact chart labels. */
+export function getShortDate(dateStr) {
+    const parts = normalizeDateToISO(dateStr).split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : String(dateStr || '');
+}
