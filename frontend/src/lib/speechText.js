@@ -12,6 +12,18 @@ export function cleanTextForSpeech(text) {
         .trim();
 }
 
+/**
+ * Removes emoji from server replies for a calmer display. Wording is unchanged,
+ * so safety messages keep their full text.
+ */
+export function cleanDisplayText(text) {
+    return String(text ?? '')
+        .replace(/[\p{Extended_Pictographic}‍️]/gu, '')
+        .replace(/^[ \t]+/gm, '')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+}
+
 /** Splits cleaned text into sentences for low-latency, sentence-by-sentence TTS playback. */
 export function splitIntoSentences(text) {
     const cleaned = cleanTextForSpeech(text);

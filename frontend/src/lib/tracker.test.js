@@ -11,6 +11,7 @@ import {
     getGlucoseReadings,
     getGlucoseStatus,
     getWellnessLogs,
+    summarizeReadings,
     validateGlucoseForm
 } from './tracker.js';
 
@@ -139,5 +140,22 @@ describe('chart geometry', () => {
         const g = computeChartGeometry(getGlucoseReadings());
         expect(g.points).toHaveLength(1);
         expect(g.linePath).toBe('');
+    });
+});
+
+describe('summarizeReadings', () => {
+    it('returns empty figures with no readings', () => {
+        expect(summarizeReadings([])).toEqual({ count: 0, latest: null, average: null, inRangePct: null });
+    });
+
+    it('computes latest, average and in-range share', () => {
+        addGlucoseReading({ value: 120, type: 'fasting', date: '2026-10-06', time: '07:00' });   // normal
+        addGlucoseReading({ value: 200, type: 'after_meal', date: '2026-10-07', time: '13:00' }); // high
+        addGlucoseReading({ value: 160, type: 'after_meal', date: '2026-10-08', time: '13:00' }); // normal
+        const s = summarizeReadings(getGlucoseReadings());
+        expect(s.count).toBe(3);
+        expect(s.latest.value).toBe(160);
+        expect(s.average).toBe(160);
+        expect(s.inRangePct).toBe(67);
     });
 });

@@ -4,11 +4,10 @@ import { getCurrentTime } from '../../lib/dates.js';
 import { QuestionPicker, detectTopicFromText } from '../../lib/questionPicker.js';
 import { useSpeechPlayback } from '../../hooks/useSpeechPlayback.js';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition.js';
-import { MicIcon, SendIcon, StopSquareIcon } from '../icons.jsx';
+import { ArrowUp, Mic, Square } from 'lucide-react';
 import MessageBubble from './MessageBubble.jsx';
 import SuggestedQuestions from './SuggestedQuestions.jsx';
 import TypingIndicator from './TypingIndicator.jsx';
-import WelcomeCard from './WelcomeCard.jsx';
 
 const MAX_INPUT_LENGTH = 500;
 const REPLY_STATUSES = new Set(['success', 'emergency', 'insufficient_info', 'medication_notice', 'crisis_support']);
@@ -110,12 +109,12 @@ export default function ChatView({ t, lang, resetToken }) {
 
                 if (viaVoice) playback.speak(replyId, data.reply, lang);
             } else {
-                appendError(`⚠️ ${data.error || t.errorMsg}`);
+                appendError(data.error || t.errorMsg);
             }
         } catch (err) {
             if (conversation !== conversationRef.current) return;
             console.error('Network Error:', err);
-            appendError(`⚠️ ${t.errorMsg}`);
+            appendError(t.errorMsg);
         } finally {
             if (conversation === conversationRef.current) {
                 processingRef.current = false;
@@ -148,8 +147,8 @@ export default function ChatView({ t, lang, resetToken }) {
                 let msg = t.micPermissionDenied;
                 if (error === 'not-allowed' && !window.isSecureContext && !isLocalhost()) {
                     msg += lang === 'ta'
-                        ? '\n\n💡 குறிப்பு: உலாவி பாதுகாப்பு விதிகளின்படி, மைக்ரோஃபோன் இயங்க HTTPS அல்லது localhost முகவரியில் திறக்கவும்.'
-                        : '\n\n💡 Tip: Browsers only allow the microphone on HTTPS or localhost. Please open the app over HTTPS or on localhost.';
+                        ? '\n\nகுறிப்பு: உலாவி பாதுகாப்பு விதிகளின்படி, மைக்ரோஃபோன் இயங்க HTTPS அல்லது localhost முகவரியில் திறக்கவும்.'
+                        : '\n\nTip: Browsers only allow the microphone on HTTPS or localhost. Please open the app over HTTPS or on localhost.';
                 }
                 appendError(msg);
             } else if (error === 'network') {
@@ -166,8 +165,8 @@ export default function ChatView({ t, lang, resetToken }) {
         }
         if (!window.isSecureContext && !isLocalhost()) {
             appendError(lang === 'ta'
-                ? '⚠️ மைக்ரோஃபோனைப் பயன்படுத்த, HTTPS அல்லது localhost முகவரியில் தளத்தைத் திறக்கவும் அல்லது உலாவி அமைப்புகளில் தள அனுமதியை இயக்கவும்.'
-                : '⚠️ Microphone access requires a secure context (HTTPS) or localhost. Please open the app over HTTPS or allow microphone access in site settings.');
+                ? 'மைக்ரோஃபோனைப் பயன்படுத்த, HTTPS அல்லது localhost முகவரியில் தளத்தைத் திறக்கவும் அல்லது உலாவி அமைப்புகளில் தள அனுமதியை இயக்கவும்.'
+                : 'Microphone access requires a secure context (HTTPS) or localhost. Please open the app over HTTPS or allow microphone access in site settings.');
             inputRef.current?.focus();
             return;
         }
@@ -187,108 +186,108 @@ export default function ChatView({ t, lang, resetToken }) {
         submitMessage(input);
     };
 
-    const micClass = `icon-btn mic-btn${recognition.isRecording ? ' recording' : ''}${recognition.isSupported ? '' : ' disabled'}`;
     const micTitle = !recognition.isSupported ? t.speechNotSupported
         : recognition.isRecording ? t.micTooltipActive
         : t.micTooltipIdle;
+    const askSuggested = (text) => {
+        voiceInputRef.current = false;
+        submitMessage(text);
+    };
+    const hasConversation = messages.length > 0 || isProcessing;
+    const nearLimit = input.length >= MAX_INPUT_LENGTH - 100;
 
     return (
-        <>
-            <main className="chat-main">
-                <div className="chat-messages" role="log" aria-live="polite">
-                    <WelcomeCard t={t} />
-                    {messages.map(message => (
-                        <MessageBubble
-                            key={message.id}
-                            message={message}
+        <div className="chat">
+            <main className="thread" role="log" aria-live="polite">
+                {!hasConversation && (
+                    <>
+                        <div className="welcome">
+                            <h1 className="welcome-title">{t.welcomeTitle}</h1>
+                            <p className="welcome-desc">{t.welcomeDesc}</p>
+                        </div>
+                        <SuggestedQuestions
                             t={t}
                             lang={lang}
-                            speechStatus={playback.activeId === message.id ? playback.status : null}
-                            onToggleSpeech={() => playback.speak(message.id, message.text, lang)}
+                            picker={pickerRef.current}
+                            disabled={isProcessing}
+                            onAsk={askSuggested}
                         />
-                    ))}
-                    {isProcessing && <TypingIndicator t={t} />}
-                    <div ref={endRef} />
-                </div>
+                    </>
+                )}
+
+                {messages.map(message => (
+                    <MessageBubble
+                        key={message.id}
+                        message={message}
+                        t={t}
+                        speechStatus={playback.activeId === message.id ? playback.status : null}
+                        onToggleSpeech={() => playback.speak(message.id, message.text, lang)}
+                    />
+                ))}
+                {isProcessing && <TypingIndicator t={t} />}
+                <div ref={endRef} />
             </main>
 
-            <SuggestedQuestions
-                t={t}
-                lang={lang}
-                picker={pickerRef.current}
-                disabled={isProcessing}
-                onAsk={(text) => {
-                    voiceInputRef.current = false;
-                    submitMessage(text);
-                }}
-            />
+            <div className="composer-wrap">
+                {hasConversation && !recognition.isRecording && (
+                    <SuggestedQuestions
+                        compact
+                        t={t}
+                        lang={lang}
+                        picker={pickerRef.current}
+                        disabled={isProcessing}
+                        onAsk={askSuggested}
+                    />
+                )}
 
-            {recognition.isRecording && (
-                <div className="voice-preview-bar" aria-live="assertive">
-                    <div className="voice-wave-indicator" aria-hidden="true">
-                        <span className="wave-bar"></span>
-                        <span className="wave-bar"></span>
-                        <span className="wave-bar"></span>
-                        <span className="wave-bar"></span>
+                {recognition.isRecording && (
+                    <div className="listening" aria-live="assertive">
+                        <span className="listening-dot" aria-hidden="true"></span>
+                        <span className="listening-label">{t.listening}</span>
+                        <span className="listening-text">{transcript}</span>
                     </div>
-                    <div className="voice-preview-content">
-                        <span className="voice-preview-status">{t.listening}</span>
-                        <span className="voice-live-transcript">{transcript || '...'}</span>
-                    </div>
+                )}
+
+                <form className="composer" autoComplete="off" onSubmit={handleSubmit}>
                     <button
                         type="button"
-                        className="stop-recording-btn"
-                        title="நிறுத்து (Stop recording)"
-                        aria-label="Stop recording"
-                        onClick={recognition.stop}
+                        className={`btn btn-ghost btn-icon${recognition.isRecording ? ' mic-active' : ''}`}
+                        title={micTitle}
+                        aria-label={micTitle}
+                        aria-pressed={recognition.isRecording}
+                        onClick={handleMicClick}
                     >
-                        <StopSquareIcon />
+                        {recognition.isRecording ? <Square /> : <Mic />}
                     </button>
-                </div>
-            )}
 
-            <footer className="app-footer">
-                <form className="chat-form" autoComplete="off" onSubmit={handleSubmit}>
-                    <div className="input-bar">
-                        <button
-                            type="button"
-                            className={micClass}
-                            title={micTitle}
-                            aria-label="Start voice speech recognition"
-                            onClick={handleMicClick}
-                        >
-                            <MicIcon />
-                        </button>
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        placeholder={t.placeholder}
+                        aria-label={t.placeholder}
+                        maxLength={MAX_INPUT_LENGTH}
+                        required
+                        value={input}
+                        onChange={(e) => updateInput(e.target.value)}
+                    />
 
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            className="chat-input"
-                            placeholder={t.placeholder}
-                            aria-label="Type your diabetes question"
-                            maxLength={MAX_INPUT_LENGTH}
-                            required
-                            value={input}
-                            onChange={(e) => updateInput(e.target.value)}
-                        />
+                    {nearLimit && (
+                        <span className={`char-count${input.length >= MAX_INPUT_LENGTH ? ' is-limit' : ''}`}>
+                            {input.length}/{MAX_INPUT_LENGTH}
+                        </span>
+                    )}
 
-                        <span className="char-counter" aria-hidden="true">{input.length}/{MAX_INPUT_LENGTH}</span>
-
-                        <button
-                            type="submit"
-                            className="icon-btn send-btn"
-                            title="அனுப்ப (Send)"
-                            aria-label="Send message"
-                            disabled={isProcessing}
-                        >
-                            <SendIcon />
-                        </button>
-                    </div>
+                    <button
+                        type="submit"
+                        className="btn btn-primary btn-icon"
+                        aria-label="Send"
+                        title="Send"
+                        disabled={isProcessing || !input.trim()}
+                    >
+                        <ArrowUp />
+                    </button>
                 </form>
-                <div className="footer-privacy-note">
-                    <span>{t.privacyNote}</span>
-                </div>
-            </footer>
-        </>
+            </div>
+        </div>
     );
 }

@@ -13,23 +13,21 @@ const emptyForm = () => ({
 });
 
 /** Blood glucose entry form. Calls onSave({ value, type, date, time, notes }) when valid. */
-export default function GlucoseForm({ t, lang, onSave, onViewChart }) {
+export default function GlucoseForm({ t, lang, onSave }) {
     const [form, setForm] = useState(emptyForm);
-    const [notice, setNotice] = useState(null); // { kind: 'error' | 'success', text }
-    const [justSaved, setJustSaved] = useState(false);
+    const [notice, setNotice] = useState(null); // { kind: 'error' | 'success', field?, text }
     const fieldRefs = { value: useRef(null), date: useRef(null), time: useRef(null) };
-    const timersRef = useRef([]);
+    const timerRef = useRef(null);
 
-    useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
+    useEffect(() => () => clearTimeout(timerRef.current), []);
 
     const setField = (name) => (e) => setForm(prev => ({ ...prev, [name]: e.target.value }));
-    const later = (fn, ms) => timersRef.current.push(setTimeout(fn, ms));
 
     const handleSubmit = (e) => {
         e.preventDefault();
         const problem = validateGlucoseForm(form);
         if (problem) {
-            setNotice({ kind: 'error', text: t[problem.errorKey] });
+            setNotice({ kind: 'error', field: problem.field, text: t[problem.errorKey] });
             fieldRefs[problem.field].current?.focus();
             return;
         }
@@ -38,86 +36,75 @@ export default function GlucoseForm({ t, lang, onSave, onViewChart }) {
 
         setForm(prev => ({ ...emptyForm(), type: prev.type }));
         setNotice({ kind: 'success', text: t.glucoseSavedSuccess });
-        setJustSaved(true);
-        later(() => setNotice(n => (n && n.kind === 'success' ? null : n)), 3500);
-        later(() => setJustSaved(false), 2000);
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setNotice(n => (n && n.kind === 'success' ? null : n)), 3000);
     };
 
-    return (
-        <form className="tracker-form" autoComplete="off" noValidate onSubmit={handleSubmit}>
-            <div className="form-header-row">
-                <h4 className="form-title">{t.formGlucoseTitle}</h4>
-                <button type="button" className="btn-link-chart" onClick={onViewChart}>
-                    {lang === 'ta' ? '📈 வரைபடம் (View Trend Chart)' : '📈 View Trend Chart'}
-                </button>
-            </div>
+    const invalid = (field) => (notice?.kind === 'error' && notice.field === field ? true : undefined);
 
-            <div className="form-group">
-                <label htmlFor="input-glucose-val">{t.labelGlucoseVal}</label>
-                <div className="input-with-unit">
+    return (
+        <form className="panel form" autoComplete="off" noValidate onSubmit={handleSubmit}>
+            <div className="field">
+                <label htmlFor="glucose-value">{t.labelGlucoseVal}</label>
+                <div className="input-group">
                     <input
                         ref={fieldRefs.value}
+                        id="glucose-value"
+                        className="input"
                         type="number"
-                        id="input-glucose-val"
-                        className="form-control"
+                        inputMode="numeric"
                         min="20"
                         max="600"
                         step="1"
                         placeholder={lang === 'ta' ? 'எ.கா. 120' : 'e.g. 120'}
-                        aria-describedby="glucose-error-msg"
+                        aria-invalid={invalid('value')}
+                        aria-describedby="glucose-msg"
                         value={form.value}
                         onChange={setField('value')}
                     />
-                    <span className="input-unit">mg/dL</span>
+                    <span className="input-suffix">mg/dL</span>
                 </div>
-                {notice && (
-                    <span className={notice.kind === 'error' ? 'form-error' : 'form-success'} id="glucose-error-msg">
-                        {notice.text}
-                    </span>
-                )}
             </div>
 
-            <div className="form-group">
-                <label htmlFor="select-glucose-type">{t.labelGlucoseType}</label>
-                <select id="select-glucose-type" className="form-control" value={form.type} onChange={setField('type')}>
+            <div className="field">
+                <label htmlFor="glucose-type">{t.labelGlucoseType}</label>
+                <select id="glucose-type" className="input" value={form.type} onChange={setField('type')}>
                     {MEASUREMENT_TYPES.map(type => (
                         <option key={type} value={type}>{t.types[type]}</option>
                     ))}
                 </select>
             </div>
 
-            <div className="form-row-2">
-                <div className="form-group">
-                    <label htmlFor="input-glucose-date">{t.labelDate}</label>
-                    <input ref={fieldRefs.date} type="date" id="input-glucose-date" className="form-control" value={form.date} onChange={setField('date')} />
+            <div className="field-row">
+                <div className="field">
+                    <label htmlFor="glucose-date">{t.labelDate}</label>
+                    <input ref={fieldRefs.date} id="glucose-date" className="input" type="date" aria-invalid={invalid('date')} value={form.date} onChange={setField('date')} />
                 </div>
-                <div className="form-group">
-                    <label htmlFor="input-glucose-time">{t.labelTime}</label>
-                    <input ref={fieldRefs.time} type="time" id="input-glucose-time" className="form-control" value={form.time} onChange={setField('time')} />
+                <div className="field">
+                    <label htmlFor="glucose-time">{t.labelTime}</label>
+                    <input ref={fieldRefs.time} id="glucose-time" className="input" type="time" aria-invalid={invalid('time')} value={form.time} onChange={setField('time')} />
                 </div>
             </div>
 
-            <div className="form-group">
-                <label htmlFor="input-glucose-notes">{t.labelNotes}</label>
+            <div className="field">
+                <label htmlFor="glucose-notes">{t.labelNotes}</label>
                 <input
+                    id="glucose-notes"
+                    className="input"
                     type="text"
-                    id="input-glucose-notes"
-                    className="form-control"
-                    placeholder={lang === 'ta' ? 'எ.கா. இட்லி சாப்பிட்ட பின், நடைபயிற்சிக்கு முன்' : 'e.g. Post-breakfast, before walk'}
                     maxLength={120}
+                    placeholder={lang === 'ta' ? 'எ.கா. இட்லி சாப்பிட்ட பின்' : 'e.g. After breakfast'}
                     value={form.notes}
                     onChange={setField('notes')}
                 />
             </div>
 
-            <button
-                type="submit"
-                className="btn-primary-action"
-                style={justSaved ? { backgroundColor: '#059669' } : undefined}
-            >
-                <span>➕</span>{' '}
-                <span>{justSaved ? (lang === 'ta' ? '✅ பதிவு செய்யப்பட்டது!' : '✅ Saved Successfully!') : t.btnAddGlucose}</span>
-            </button>
+            <div className="field">
+                <button type="submit" className="btn btn-primary btn-block">{t.btnAddGlucose}</button>
+                <span id="glucose-msg" className={`field-msg${notice ? ` is-${notice.kind}` : ''}`} aria-live="polite">
+                    {notice?.text}
+                </span>
+            </div>
         </form>
     );
 }

@@ -1,6 +1,6 @@
+import { Droplet, Footprints, Trash2 } from 'lucide-react';
 import { getFormattedDate } from '../../lib/dates.js';
 import { getGlucoseStatus } from '../../lib/tracker.js';
-import { TrashIcon } from '../icons.jsx';
 
 export const HISTORY_FILTERS = ['all', 'fasting', 'after_meal', 'wellness'];
 
@@ -19,80 +19,74 @@ function filterItems(filter, readings, wellnessLogs) {
     return list.map(r => ({ ...r, kind: 'glucose' }));
 }
 
-function DeleteButton({ t, onClick }) {
-    return (
-        <button type="button" className="btn-delete-record" title={t.btnDelete} aria-label="Delete entry" onClick={onClick}>
-            <TrashIcon />
-        </button>
-    );
-}
-
 export default function HistoryList({ t, filter, onFilterChange, readings, wellnessLogs, onDelete }) {
     const items = filterItems(filter, readings, wellnessLogs);
 
     return (
-        <div className="tracker-card history-card">
-            <div className="card-header-row">
-                <div className="card-title-group">
-                    <span className="card-title-icon">📋</span>
-                    <h3>{t.historyTitle}</h3>
+        <section aria-labelledby="history-title">
+            <div className="section-head">
+                <h2 id="history-title" className="section-title">
+                    {t.historyTitle}
+                    <span className="history-count">{items.length}</span>
+                </h2>
+                <div className="segmented-scroll">
+                    <div className="segmented" role="tablist">
+                        {HISTORY_FILTERS.map(f => (
+                            <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => onFilterChange(f)}>
+                                {t[FILTER_LABEL_KEYS[f]]}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <span className="records-count-badge">{t.recordsCount(items.length)}</span>
             </div>
 
-            <div className="history-filter-bar" role="tablist">
-                {HISTORY_FILTERS.map(f => (
-                    <button
-                        key={f}
-                        type="button"
-                        className={`filter-chip${filter === f ? ' active' : ''}`}
-                        onClick={() => onFilterChange(f)}
-                    >
-                        {t[FILTER_LABEL_KEYS[f]]}
-                    </button>
-                ))}
-            </div>
-
-            <div className="history-records-list">
+            <div className="panel history-list">
                 {items.length === 0 ? (
-                    <div className="empty-state-box">
-                        <span className="empty-state-icon">📋</span>
-                        <h4>{t.emptyHistoryTitle}</h4>
+                    <div className="empty">
+                        <h3>{t.emptyHistoryTitle}</h3>
                         <p>{t.emptyHistoryDesc}</p>
                     </div>
                 ) : items.map(item => (
-                    <div className="record-item" key={item.id}>
+                    <div className="history-row" key={item.id}>
                         {item.kind === 'glucose' ? (
-                            <div className="record-left">
-                                <div className={`glucose-val-pill ${getGlucoseStatus(item.value, item.type)}`}>
+                            <>
+                                <div className="history-value">
+                                    <span className={`dot dot-${getGlucoseStatus(item.value, item.type)}`} aria-hidden="true"></span>
                                     {item.value}
-                                    <span>mg/dL</span>
+                                    <small>mg/dL</small>
                                 </div>
-                                <div className="record-details">
-                                    <span className="record-type-badge">🏷️ {t.types[item.type] || item.type}</span>
-                                    <span className="record-timestamp">
-                                        📅 {getFormattedDate(item.date)} {item.time ? `• ⏰ ${item.time}` : ''}
-                                    </span>
-                                    {item.notes && <span className="record-notes">📝 {item.notes}</span>}
+                                <div className="history-details">
+                                    <div className="history-type">{t.types[item.type] || item.type}</div>
+                                    <div className="history-meta">
+                                        {getFormattedDate(item.date)}{item.time ? ` · ${item.time}` : ''}
+                                    </div>
+                                    {item.notes && <div className="history-notes">{item.notes}</div>}
                                 </div>
-                            </div>
+                            </>
                         ) : (
-                            <div className="record-left">
-                                <div className="glucose-val-pill normal">
-                                    {item.walking}
-                                    <span>{t.unitWalking}</span>
+                            <>
+                                <div className="history-wellness">
+                                    <span><Footprints aria-hidden="true" />{item.walking} {t.unitWalking}</span>
+                                    <span><Droplet aria-hidden="true" />{item.water} {t.unitWater}</span>
                                 </div>
-                                <div className="record-details">
-                                    <span className="record-type-badge">💧 {item.water} {t.unitWater}</span>
-                                    <span className="record-timestamp">📅 {getFormattedDate(item.date)}</span>
-                                    {item.notes && <span className="record-notes">📝 {item.notes}</span>}
+                                <div className="history-details">
+                                    <div className="history-meta">{getFormattedDate(item.date)}</div>
+                                    {item.notes && <div className="history-notes">{item.notes}</div>}
                                 </div>
-                            </div>
+                            </>
                         )}
-                        <DeleteButton t={t} onClick={() => onDelete(item.id, item.kind)} />
+                        <button
+                            type="button"
+                            className="btn btn-ghost btn-icon"
+                            title={t.btnDelete}
+                            aria-label={t.btnDelete}
+                            onClick={() => onDelete(item.id, item.kind)}
+                        >
+                            <Trash2 width={16} height={16} />
+                        </button>
                     </div>
                 ))}
             </div>
-        </div>
+        </section>
     );
 }

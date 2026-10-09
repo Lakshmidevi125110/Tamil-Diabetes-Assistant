@@ -164,3 +164,19 @@ export function generateEducationalInsights(readings, lang) {
         ? `உங்கள் பதிவுகள் ஒப்பீட்டளவில் சீரான போக்கைக் காட்டுகின்றன (சராசரி: ${avg} mg/dL). ஆரோக்கியமான சமச்சீர் உணவு, தினசரி நடைபயிற்சி மற்றும் வழக்கமான மருத்துவ ஆலோசனையைத் தொடரவும்.`
         : `Your readings show a relatively consistent trend (average: ${avg} mg/dL). Continue your balanced nutrition, physical activity, and routine healthcare consultations.`;
 }
+
+/** Summary figures for the tracker header (readings in any order). */
+export function summarizeReadings(readings) {
+    if (readings.length === 0) {
+        return { count: 0, latest: null, average: null, inRangePct: null };
+    }
+    const latest = readings.reduce((a, b) => (b.timestamp > a.timestamp ? b : a));
+    const average = Math.round(readings.reduce((sum, r) => sum + r.value, 0) / readings.length);
+    const inRange = readings.filter(r => getGlucoseStatus(r.value, r.type) === 'normal').length;
+    return {
+        count: readings.length,
+        latest,
+        average,
+        inRangePct: Math.round((inRange / readings.length) * 100)
+    };
+}
