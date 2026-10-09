@@ -194,6 +194,7 @@ All secrets live in `.env` files, which git ignores. Only the `.env.example` tem
 | `PORT` | `8000` | Render sets this automatically |
 | `DEBUG` | `False` | |
 | `CORS_ORIGINS` | `http://localhost:5173,…` | Comma-separated frontend URLs. Add the Vercel URL in production |
+| `CORS_ORIGIN_REGEX` | empty | Pattern for changing URLs such as Vercel previews (preset in `render.yaml`) |
 | `GEMINI_API_KEY` | — | **Required** for AI answers and embeddings |
 | `GEMINI_MODEL` | `gemini-flash-lite-latest` | `.env.example` and `render.yaml` set `gemini-3.5-flash` |
 | `PRIMARY_LLM` / `SECONDARY_LLM` | `gemini` / empty | Choose from `gemini`, `claude`, `grok` |
@@ -259,10 +260,11 @@ flowchart LR
 **Backend on Render**
 1. In Render, choose **New → Blueprint** and select the repository. `render.yaml` creates the service from `backend/`.
 2. Set the secret variables: `GEMINI_API_KEY`, `CORS_ORIGINS` (the Vercel URL), and `DATABASE_URL` (optional for now).
-3. Render runs `uvicorn app.main:app --host 0.0.0.0 --port $PORT` and checks `/health`.
+3. Render runs `uvicorn app.main:app --host 0.0.0.0 --port $PORT` and checks `/health`. Only changes under `backend/` trigger a redeploy.
+4. Delete the old Render service that served the whole app.
 
 **Frontend on Vercel**
-1. Import the repository and set **Root Directory** to `frontend`. Vercel detects Vite automatically.
+1. Import the repository and set **Root Directory** to `frontend`. `frontend/vercel.json` sets the build (`npm ci`, `npm run build`), long-term caching for `/assets`, and security headers.
 2. Set `VITE_API_BASE_URL` to the Render URL.
 3. After the first deploy, add the Vercel URL to the backend's `CORS_ORIGINS`.
 
@@ -275,7 +277,7 @@ flowchart LR
 | Concern | Control |
 |---|---|
 | Secrets | `.env` files are git-ignored; only empty `.env.example` templates are committed. A test fails if `.env` isn't ignored or the template contains a key. |
-| Cross-origin access | Only origins in `CORS_ORIGINS` may call the API |
+| Cross-origin access | Only origins in `CORS_ORIGINS` or matching `CORS_ORIGIN_REGEX` may call the API |
 | Abuse | Per-IP rate limits (chat 15/min, TTS 25/min) and 500-character question limit; requests over 1 MB are rejected |
 | HTTP headers | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` on every response |
 | Medical safety | Deterministic emergency, crisis, and medication intercepts; source-grounded answers; safety and tone validators on every model reply |

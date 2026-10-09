@@ -163,16 +163,23 @@ Tests: `npm test` · Production build: `npm run build`
 
 ### Backend → Render
 
+Render hosts **only the API**; it no longer serves any web pages.
+
 1. In Render choose **New + → Blueprint** and select this repository; `render.yaml` creates the service from `backend/`
    (start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check: `/health`).
+   It redeploys only when files under `backend/` change.
 2. Fill in the secret environment variables Render asks for:
    - `GEMINI_API_KEY` — your Gemini key
-   - `CORS_ORIGINS` — your Vercel URL, e.g. `https://your-app.vercel.app`
+   - `CORS_ORIGINS` — your Vercel URL, e.g. `https://tamil-diabetes-assistant.vercel.app`
    - `DATABASE_URL` — your Neon connection string (optional for now)
+
+   `CORS_ORIGIN_REGEX` is preset so Vercel preview URLs (`tamil-diabetes-assistant-*.vercel.app`) can call the API;
+   change it if your Vercel project has a different name.
+3. Delete the old Render service that used to serve the whole app, once the new one is healthy.
 
 ### Frontend → Vercel
 
-1. Import the repository in Vercel and set **Root Directory** to `frontend` (Vite is auto-detected).
+1. Import the repository in Vercel and set **Root Directory** to `frontend`. `frontend/vercel.json` sets the build, caching and security headers.
 2. Add the environment variable `VITE_API_BASE_URL` = your Render URL, e.g. `https://tamil-diabetes-assistant-api.onrender.com`.
 3. Deploy, then make sure that Vercel URL is listed in the backend's `CORS_ORIGINS`.
 

@@ -63,3 +63,28 @@ def test_render_vector_store_warmup_and_fast_lookup():
     assert store is not None
     # Index was loaded from data/index/knowledge_index.json
     assert store.count() > 0
+
+
+def test_cors_allows_configured_origin_and_preview_regex(monkeypatch):
+    """Exact CORS_ORIGINS and CORS_ORIGIN_REGEX (Vercel previews) are allowed; others are not."""
+    from fastapi.testclient import TestClient
+    from app.main import create_app
+    monkeypatch.setattr(Config, "CORS_ORIGINS", ["https://tamil-diabetes-assistant.vercel.app"])
+    monkeypatch.setattr(Config, "CORS_ORIGIN_REGEX", r"^https://tamil-diabetes-assistant(-[a-z0-9-]+)?\.vercel\.app$")
+    client = TestClient(create_app())
+
+    def preflight(origin):
+        return client.options("/chat", headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        })
+
+    for allowed in ("https://tamil-diabetes-assistant.vercel.app",
+                    "https://tamil-diabetes-assistant-git-feature-x-team.vercel.app"):
+        res = preflight(allowed)
+        assert res.status_code == 200
+        assert res.headers["access-control-allow-origin"] == allowed
+
+    res = preflight("https://evil.vercel.app")
+    assert "access-control-allow-origin" not in res.headers
