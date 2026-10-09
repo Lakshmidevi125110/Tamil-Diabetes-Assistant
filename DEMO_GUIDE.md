@@ -36,7 +36,7 @@
 2. **Observe**: The response does not wait for a generative LLM. The deterministic safety guardrail immediately intercepts the request and outputs the **🚨 அவசர மருத்துவ எச்சரிக்கை (EMERGENCY)** protocol, instructing the caller to phone **108** immediately and administer fast-acting glucose if conscious.
 
 ### Step 5: Test Suite Verification
-1. Run `pytest tests/ -v` in the terminal to show that all 16 automated tests pass in ~1.3 seconds.
+1. Run `pytest` inside `backend/` (and `npm test` inside `frontend/`) to show the automated test suites passing.
 
 ---
 

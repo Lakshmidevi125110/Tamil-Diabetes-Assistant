@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+google-genai
+edge-tts
+gtts
+python-dotenv
+requests
+pypdf

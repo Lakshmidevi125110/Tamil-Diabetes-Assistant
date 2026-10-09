@@ -1,15 +1,14 @@
 # 🩺 Tamil Voice Diabetes Assistant (தமிழ் குரல் சர்க்கரை நோய் வழிகாட்டி)
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)](https://palletsprojects.com/p/flask/)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-Vite-61DAFB.svg)](https://react.dev/)
 [![Google Gemini](https://img.shields.io/badge/AI-Google%20Gemini-orange.svg)](https://ai.google.dev/)
-[![Tests](https://img.shields.io/badge/Pytest-16%20Passed-brightgreen.svg)](tests/)
-[![Deploy](https://img.shields.io/badge/Deployed%20on-Render-46E3B7.svg)](https://tamil-diabetes-assistant.onrender.com)
 
 A voice-enabled AI health awareness assistant designed for Tamil and English speakers. It delivers conversational diabetes education, dietary guidelines, and lifestyle insights while enforcing strict medical safety guardrails.
 
 🔗 **Live Web Application**: [https://tamil-diabetes-assistant.onrender.com](https://tamil-diabetes-assistant.onrender.com)  
-📖 **Demo & Interview Guide**: See [`DEMO_GUIDE.md`](file:///c:/Users/LAKSHMI%20DEVI/Documents/Projects/Tamil-Diabetes-Assistant/DEMO_GUIDE.md) for 60-second elevator pitch and presentation script.
+📖 **Demo & Interview Guide**: See [`DEMO_GUIDE.md`](DEMO_GUIDE.md) for 60-second elevator pitch and presentation script.
 
 ---
 
@@ -31,16 +30,15 @@ A voice-enabled AI health awareness assistant designed for Tamil and English spe
 User (Voice / Text)
        │
        ▼
-Frontend (HTML5 / CSS3 / Vanilla JS + Web Speech API)
-       │ HTTP / JSON
+frontend/  React + Vite (Web Speech API, localStorage tracker)   → Vercel
+       │ HTTPS / JSON  (VITE_API_BASE_URL)
        ▼
-Backend (Flask REST API + CORS + Blueprints)
- ├── config.py           (Environment settings)
- ├── routes/             (health, chat blueprints)
- └── services/           (Gemini AI, Text-to-Speech)
+backend/   FastAPI + Uvicorn (CORS, rate limits, safety guardrails) → Render
+ ├── app/routers/    chat, tts, glucose, questions, health
+ └── app/services/   RAG retrieval, Gemini/LLM providers, safety validators
        │
-       ▼
-AI & Speech Engine (Gemini 2.5 Flash + Browser TTS)
+       ├── Google Gemini (answers + embeddings) & edge-tts / gTTS (speech)
+       └── Neon PostgreSQL (DATABASE_URL, reserved for upcoming persistence)
 ```
 
 ---
@@ -49,30 +47,29 @@ AI & Speech Engine (Gemini 2.5 Flash + Browser TTS)
 
 ```
 Tamil-Diabetes-Assistant/
-├── config.py             # Application configuration & environment loader
-├── app.py                # Main Flask entrypoint & application factory
-├── Procfile              # Cloud process declaration (gunicorn WSGI runner)
-├── render.yaml           # 1-Click Render cloud deployment configuration
-├── .env.example          # Sample environment variable template
-├── routes/               # Modular API route blueprints
-│   ├── __init__.py
-│   ├── health.py         # Health check endpoint (GET /health)
-│   ├── chat.py           # Chat & validation endpoint (POST /chat)
-│   └── tts.py            # Text-to-speech audio endpoint (POST /tts)
-├── services/             # Business logic & safety guardrails
-│   ├── __init__.py
-│   ├── ai_service.py     # Google Gemini API connector with safety filters
-│   └── guardrails.py     # Rate limiting & emergency symptom interceptor
-├── tests/                # Automated pytest suite (16 tests)
-│   ├── conftest.py       # Isolated test client fixtures
-│   ├── test_health.py    # Health check tests
-│   ├── test_chat_validation.py # Input validation tests
-│   ├── test_safety_guardrails.py # Safety & emergency tests
-│   └── test_tts.py       # Audio synthesis tests
-├── static/               # Frontend static assets (CSS, JS)
-├── templates/            # HTML5 web interface (index.html)
-├── requirements.txt      # Python dependencies
-└── README.md             # Project documentation
+├── backend/                    # FastAPI service (deploys to Render)
+│   ├── app/
+│   │   ├── main.py             # App factory: CORS, security headers, error handlers
+│   │   ├── config.py           # Settings loaded from backend/.env
+│   │   ├── routers/            # health, chat (/chat, /rag), tts, glucose, questions
+│   │   └── services/           # RAG, embeddings, LLM providers, guardrails, safety
+│   ├── data/                   # Knowledge documents, prebuilt vector index, reference JSON
+│   ├── scripts/                # add_document, build_index, test_query (run with python -m)
+│   ├── tests/                  # pytest suite
+│   ├── requirements.txt        # Runtime dependencies
+│   ├── requirements-dev.txt    # + pytest, httpx
+│   └── .env.example            # Backend environment template
+├── frontend/                   # React + Vite app (deploys to Vercel)
+│   ├── src/
+│   │   ├── components/         # layout/, chat/, tracker/
+│   │   ├── hooks/              # speech playback & speech recognition
+│   │   ├── lib/                # API client, tracker storage, chart geometry (+ tests)
+│   │   ├── data/questions.js   # Fallback suggested questions
+│   │   └── i18n.js             # Tamil & English strings
+│   ├── vercel.json
+│   └── .env.example            # Frontend environment template
+├── render.yaml                 # Render blueprint (rootDir: backend)
+└── README.md
 ```
 
 ---
@@ -81,51 +78,44 @@ Tamil-Diabetes-Assistant/
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11, Node.js 20+
 - Google Chrome or Microsoft Edge (for Web Speech recognition)
 - Free Gemini API key from [Google AI Studio](https://aistudio.google.com/)
 
-### Installation
+### 1. Backend (FastAPI) — http://localhost:8000
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/yourusername/Tamil-Diabetes-Assistant.git
-   cd Tamil-Diabetes-Assistant
-   ```
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
+pip install -r requirements-dev.txt
+copy .env.example .env          # Linux/macOS: cp .env.example .env — then set GEMINI_API_KEY
+uvicorn app.main:app --reload --port 8000
+```
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv venv
-   # On Windows:
-   .\venv\Scripts\activate
-   # On Linux/macOS:
-   source venv/bin/activate
-   ```
+Interactive API docs: http://localhost:8000/docs · Tests: `pytest`
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 2. Frontend (React) — http://localhost:5173
 
-4. **Configure environment variables:**
-   Create a `.env` file in the project root:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   GEMINI_MODEL=gemini-2.5-flash
-   PORT=5000
-   DEBUG=True
-   ```
+```bash
+cd frontend
+npm install
+copy .env.example .env.local    # Linux/macOS: cp .env.example .env.local
+npm run dev
+```
 
-5. **Run the server:**
-   ```bash
-   python app.py
-   ```
-   Visit `http://localhost:5000/health` in your browser to verify.
+Tests: `npm test` · Production build: `npm run build`
 
-6. **Run automated test suite:**
-   ```bash
-   pytest tests/ -v
-   ```
+### Environment variables
+
+| Where | Variable | Purpose |
+|---|---|---|
+| `backend/.env` | `GEMINI_API_KEY` | Gemini key (secret) |
+| `backend/.env` | `CORS_ORIGINS` | Comma-separated frontend URLs allowed to call the API |
+| `backend/.env` | `DATABASE_URL` | Neon PostgreSQL connection string (reserved, not used yet) |
+| `frontend/.env.local` | `VITE_API_BASE_URL` | Backend URL. Bundled into the browser — never put secrets here |
+
+`.env` files are git-ignored; only the `.env.example` templates are committed.
 
 ---
 
@@ -169,34 +159,22 @@ Tamil-Diabetes-Assistant/
 
 ---
 
-## 🌐 Cloud Deployment (Render)
+## 🌐 Deployment
 
-This repository includes a [`Procfile`](file:///c:/Users/LAKSHMI%20DEVI/Documents/Projects/Tamil-Diabetes-Assistant/Procfile) and [`render.yaml`](file:///c:/Users/LAKSHMI%20DEVI/Documents/Projects/Tamil-Diabetes-Assistant/render.yaml) for 1-click or blueprint deployment on [Render](https://render.com) (free tier):
+### Backend → Render
 
-1. **Push your code to GitHub**:
-   ```bash
-   git add .
-   git commit -m "feat: configure cloud deployment with Render blueprint and Gunicorn"
-   git push origin main
-   ```
+1. In Render choose **New + → Blueprint** and select this repository; `render.yaml` creates the service from `backend/`
+   (start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check: `/health`).
+2. Fill in the secret environment variables Render asks for:
+   - `GEMINI_API_KEY` — your Gemini key
+   - `CORS_ORIGINS` — your Vercel URL, e.g. `https://your-app.vercel.app`
+   - `DATABASE_URL` — your Neon connection string (optional for now)
 
-2. **Deploy on Render**:
-   - Sign up/log in at [Render.com](https://render.com).
-   - Click **New +** > **Web Service**.
-   - Connect your GitHub repository `Tamil-Diabetes-Assistant`.
-   - Set the following settings:
-     - **Environment**: `Python 3`
-     - **Build Command**: `pip install -r requirements.txt`
-     - **Start Command**: `gunicorn app:app`
-     - **Plan**: `Free`
-   - Under **Environment Variables**, add:
-     - `GEMINI_API_KEY`: *(Your Google Gemini API Key from Google AI Studio)*
-     - `GEMINI_MODEL`: `gemini-3.5-flash`
-     - `DEBUG`: `False`
-   - Click **Create Web Service**.
+### Frontend → Vercel
 
-3. **Verify Deployment**:
-   - Once deployed, visit your Render URL (e.g., `https://tamil-diabetes-assistant.onrender.com/health`) to confirm the service is live and healthy.
+1. Import the repository in Vercel and set **Root Directory** to `frontend` (Vite is auto-detected).
+2. Add the environment variable `VITE_API_BASE_URL` = your Render URL, e.g. `https://tamil-diabetes-assistant-api.onrender.com`.
+3. Deploy, then make sure that Vercel URL is listed in the backend's `CORS_ORIGINS`.
 
 ---
 
